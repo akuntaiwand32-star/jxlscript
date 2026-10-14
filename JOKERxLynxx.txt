@@ -1,3 +1,4 @@
+-- JOKERxLynxx v13 BETA | Jump for Animals | rapi + radar/peringatan/auto kabur
 print("[JxL] script mulai dijalankan")
 if _G.JxL_Cleanup then pcall(_G.JxL_Cleanup) end
 local statusLbl
@@ -1136,10 +1137,18 @@ local conn
 local rebuild
 local holdMsg
 local autoStop = true
+local camLock = true
+local autoHit = false
+local hitJob = 0
 local function stop(msg)
 target = nil
 holdMsg = msg
+hitJob = hitJob + 1
 if conn then conn:Disconnect() conn = nil end
+pcall(function()
+local cam = workspace.CurrentCamera
+if cam and cam.CameraType == Enum.CameraType.Scriptable then cam.CameraType = Enum.CameraType.Custom end
+end)
 if msg then sw.sub.Text = msg end
 end
 local function start(p)
@@ -1205,7 +1214,49 @@ end
 end
 local c1 = RunService.Heartbeat:Connect(function() step(false) end)
 local c2 = RunService.Stepped:Connect(function() if target then pcall(step, true) end end)
-conn = {Disconnect = function() c1:Disconnect() c2:Disconnect() end}
+local c3 = RunService.RenderStepped:Connect(function()
+if not (camLock and target) then return end
+local tc = target.Character
+local tr = tc and tc:FindFirstChild("HumanoidRootPart")
+local me = getHRP()
+local cam = workspace.CurrentCamera
+if tr and me and cam then
+local flat = Vector3.new(tr.Position.X - me.Position.X, 0, tr.Position.Z - me.Position.Z)
+if flat.Magnitude < 0.1 then return end
+local back = -flat.Unit
+cam.CameraType = Enum.CameraType.Scriptable
+cam.CFrame = CFrame.lookAt(me.Position + back * 7 + Vector3.new(0, 3.5, 0), tr.Position + Vector3.new(0, 1, 0))
+end
+end)
+conn = {Disconnect = function() c1:Disconnect() c2:Disconnect() c3:Disconnect() end}
+hitJob = hitJob + 1
+local myHit = hitJob
+task.spawn(function()
+while hitJob == myHit and target == p do
+if autoHit then
+pcall(function()
+local ch = player.Character
+local hum = ch and ch:FindFirstChildOfClass("Humanoid")
+if not hum then return end
+local function isPunch(t)
+local n = t.Name:lower()
+return t:IsA("Tool") and (n:find("pukul", 1, true) or n:find("punch", 1, true) or n:find("tangan", 1, true) or n:find("hand", 1, true))
+end
+local cur = ch:FindFirstChildOfClass("Tool")
+if not (cur and isPunch(cur)) then
+local bp = player:FindFirstChildOfClass("Backpack")
+if bp then
+for _, t in ipairs(bp:GetChildren()) do
+if isPunch(t) then hum:EquipTool(t) cur = t break end
+end
+end
+end
+if cur and isPunch(cur) then cur:Activate() end
+end)
+end
+task.wait(0.15)
+end
+end)
 sw.sub.Text = "Mengikuti " .. p.DisplayName
 end
 rebuild = function()
@@ -1228,6 +1279,30 @@ ab.MouseButton1Click:Connect(function()
 autoStop = not autoStop
 ab.Text = "BERHENTI SAAT TERLEMPAR: " .. (autoStop and "NYALA" or "MATI")
 ab.BackgroundColor3 = autoStop and Color3.fromRGB(34, 170, 90) or C.panel2
+end)
+local cb = button("KAMERA KE TARGET: " .. (camLock and "NYALA" or "MATI"), 10, list, {
+Size = UDim2.new(1, -2, 0, 28), BackgroundColor3 = camLock and Color3.fromRGB(34, 170, 90) or C.panel2, LayoutOrder = 1,
+})
+corner(cb, 8)
+cb.MouseButton1Click:Connect(function()
+camLock = not camLock
+cb.Text = "KAMERA KE TARGET: " .. (camLock and "NYALA" or "MATI")
+cb.BackgroundColor3 = camLock and Color3.fromRGB(34, 170, 90) or C.panel2
+if not camLock then
+pcall(function()
+local cam = workspace.CurrentCamera
+if cam.CameraType == Enum.CameraType.Scriptable then cam.CameraType = Enum.CameraType.Custom end
+end)
+end
+end)
+local hb = button("AUTO PUKUL: " .. (autoHit and "NYALA" or "MATI"), 10, list, {
+Size = UDim2.new(1, -2, 0, 28), BackgroundColor3 = autoHit and Color3.fromRGB(34, 170, 90) or C.panel2, LayoutOrder = 1,
+})
+corner(hb, 8)
+hb.MouseButton1Click:Connect(function()
+autoHit = not autoHit
+hb.Text = "AUTO PUKUL: " .. (autoHit and "NYALA" or "MATI")
+hb.BackgroundColor3 = autoHit and Color3.fromRGB(34, 170, 90) or C.panel2
 end)
 if target then
 local sb = button("BERHENTI MENGIKUTI", 12, list, {
@@ -1501,6 +1576,113 @@ autoOn = false
 autoJob = autoJob + 1
 remOn = false
 end
+end)
+secure("EGGALERT", function()
+local page = pages["EGG"]
+local on = false
+local rank = {Umum = 1, Langka = 2, Legendaris = 3, Ilahi = 4, Eternal = 5}
+local names = {"Semua", "Langka", "Legendaris", "Ilahi", "Eternal"}
+local minIdx = 4
+local known = {["hyena egg"] = "Eternal", ["siege crawler egg"] = "Eternal"}
+local seen = setmetatable({}, {__mode = "k"})
+local lastModel, lastPos
+local toastGui = Instance.new("ScreenGui")
+toastGui.Name = "JxL_EggAlert"
+toastGui.ResetOnSpawn = false
+toastGui.DisplayOrder = 50
+pcall(function() toastGui.Parent = gui.Parent end)
+local tl = Instance.new("TextLabel")
+tl.Size = UDim2.new(0.9, 0, 0, 44)
+tl.AnchorPoint = Vector2.new(0.5, 0)
+tl.Position = UDim2.new(0.5, 0, 0, 90)
+tl.BackgroundColor3 = Color3.fromRGB(30, 24, 52)
+tl.BackgroundTransparency = 0.1
+tl.TextColor3 = Color3.fromRGB(255, 220, 120)
+tl.Font = Enum.Font.GothamBold
+tl.TextSize = 14
+tl.TextWrapped = true
+tl.Visible = false
+tl.Parent = toastGui
+local tc = Instance.new("UICorner")
+tc.CornerRadius = UDim.new(0, 10)
+tc.Parent = tl
+local toastJob = 0
+local function toast(txt)
+toastJob = toastJob + 1
+local my = toastJob
+tl.Text = txt
+tl.Visible = true
+task.delay(7, function() if toastJob == my then tl.Visible = false end end)
+end
+track({Disconnect = function() toastGui:Destroy() end})
+local function rarityOf(m)
+local o = m
+for _ = 1, 4 do
+if not o or o == workspace then break end
+for k, v in pairs(o:GetAttributes()) do
+if tostring(k):lower():find("rarity", 1, true) then return tostring(v) end
+end
+o = o.Parent
+end
+local nm = m.Name:lower()
+for k, v in pairs(known) do if nm:find(k, 1, true) then return v end end
+return nil
+end
+local function check(pp)
+if not on or seen[pp] then return end
+local at = ((pp.ActionText or "") .. " " .. (pp.ObjectText or "")):lower()
+if not (at:find("curi", 1, true) or at:find("steal", 1, true)) then return end
+seen[pp] = true
+task.wait(0.6)
+if not on or not pp.Parent then return end
+local m = pp:FindFirstAncestorOfClass("Model") or pp.Parent
+if not m or m.Name:lower():find("debris", 1, true) then return end
+local r = rarityOf(m)
+local need = names[minIdx]
+if need ~= "Semua" and not (r and (rank[r] or 0) >= rank[need]) then return end
+local part = m:IsA("Model") and (m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart", true)) or m
+if not (part and part:IsA("BasePart")) then return end
+lastModel, lastPos = m, part.Position
+toast(string.format("TELUR %s (%s) muncul di (%.0f, %.0f, %.0f)", m.Name, r or "?", part.Position.X, part.Position.Y, part.Position.Z))
+end
+local function scan()
+local n = 0
+for _, o in ipairs(workspace:GetDescendants()) do
+if not on then return end
+if o:IsA("ProximityPrompt") then pcall(check, o) end
+n = n + 1
+if n % 400 == 0 then task.wait() end
+end
+end
+track(workspace.DescendantAdded:Connect(function(o)
+if on and o:IsA("ProximityPrompt") then task.spawn(pcall, check, o) end
+end))
+makeToggle(page, "Pemberitahuan Telur Langka", "Muncul tulisan saat telur langka ada di dunia", 7, false, function(v)
+on = v
+if v then task.spawn(scan) end
+end)
+local rb = button("MINIMAL RARITY: " .. names[minIdx] .. " (ketuk ganti)", 11, page, {
+Size = UDim2.new(1, -2, 0, 30), BackgroundColor3 = C.panel2, LayoutOrder = 8,
+})
+corner(rb, 8)
+rb.MouseButton1Click:Connect(function()
+minIdx = minIdx % #names + 1
+rb.Text = "MINIMAL RARITY: " .. names[minIdx] .. " (ketuk ganti)"
+table.clear(seen)
+if on then task.spawn(scan) end
+end)
+local tb = button("TELEPORT KE TELUR TERAKHIR", 11, page, {
+Size = UDim2.new(1, -2, 0, 30), BackgroundColor3 = C.panel2, LayoutOrder = 9,
+})
+corner(tb, 8)
+tb.MouseButton1Click:Connect(function()
+local h = getHRP()
+if h and lastPos then
+h.CFrame = CFrame.new(lastPos + Vector3.new(0, 4, 0))
+else
+toast("Belum ada telur yang terdeteksi")
+end
+end)
 end)
 secure("AREALIST", function()
 local sw = makeSubWindow("TELEPORT AREA", "", 240, 340, 36)
@@ -1854,6 +2036,315 @@ for _, e in ipairs(t or {}) do table.insert(saved, {e[1], Vector3.new(e[2], e[3]
 end,
 def = {},
 }
+end)
+secure("MARKS", function()
+local eggMark = false
+local rel = {} -- nama pemain -> "teman" / "musuh"
+local marks = setmetatable({}, {__mode = "k"})
+local relNames = {teman = "TEMAN", musuh = "MUSUH"}
+local relColor = {teman = Color3.fromRGB(60, 220, 120), musuh = Color3.fromRGB(255, 70, 70)}
+local function carryingEgg(p)
+local ch = p.Character
+if not ch then return false end
+if (tonumber(p:GetAttribute("CarriedEggCount")) or 0) > 0 then return true end
+for _, t in ipairs(ch:GetChildren()) do
+if t:IsA("Tool") then
+local n = t.Name:lower()
+if t:GetAttribute("IsEggTool") or t:GetAttribute("EggId") ~= nil or n:find("egg", 1, true) or n:find("telur", 1, true) then
+return true
+end
+end
+end
+return false
+end
+local function dropMark(p)
+local b = marks[p]
+if b then b:Destroy() marks[p] = nil end
+end
+local function refresh()
+for _, p in ipairs(Players:GetPlayers()) do
+if p ~= player then
+local ch = p.Character
+local head = ch and (ch:FindFirstChild("Head") or ch:FindFirstChild("HumanoidRootPart"))
+local r = rel[p.Name]
+local egg = eggMark and carryingEgg(p)
+if head and (r or egg) then
+local b = marks[p]
+if not b or not b.Parent or b.Adornee ~= head then
+if b then b:Destroy() end
+b = Instance.new("BillboardGui")
+b.Name = "JxL_Mark"
+b.Size = UDim2.new(0, 120, 0, 36)
+b.StudsOffset = Vector3.new(0, 3.2, 0)
+b.AlwaysOnTop = true
+b.Adornee = head
+local t = Instance.new("TextLabel")
+t.Name = "T"
+t.Size = UDim2.new(1, 0, 1, 0)
+t.BackgroundTransparency = 1
+t.Font = Enum.Font.GothamBlack
+t.TextSize = 14
+t.TextStrokeTransparency = 0
+t.TextWrapped = true
+t.Parent = b
+b.Parent = player:FindFirstChildOfClass("PlayerGui") or gui
+marks[p] = b
+end
+local lines, col = {}, Color3.fromRGB(255, 220, 80)
+if r then lines[#lines + 1] = relNames[r] col = relColor[r] end
+if egg then lines[#lines + 1] = "TELUR!" end
+local t = b:FindFirstChild("T")
+if t then
+t.Text = table.concat(lines, "\n")
+t.TextColor3 = egg and not r and Color3.fromRGB(255, 220, 80) or col
+end
+else
+dropMark(p)
+end
+end
+end
+end
+task.spawn(function()
+while gui.Parent do
+pcall(refresh)
+task.wait(0.5)
+end
+end)
+track(Players.PlayerRemoving:Connect(function(p) dropMark(p) end))
+track({Disconnect = function() for p in pairs(marks) do dropMark(p) end end})
+makeToggle(pages["EGG"], "Tanda Pembawa Telur", "Tulisan TELUR! di atas kepala pemain yang membawa telur", 10, false, function(v)
+eggMark = v
+end)
+local sw = makeSubWindow("TEMAN / MUSUH", "Ketuk nama untuk ganti status", 230, 310, 36)
+local list = sw.content
+local function statusText(r) return r == "teman" and "  [TEMAN]" or r == "musuh" and "  [MUSUH]" or "" end
+local function rebuild()
+for _, c in ipairs(list:GetChildren()) do
+if c:IsA("TextButton") then c:Destroy() end
+end
+local arr = {}
+for _, p in ipairs(Players:GetPlayers()) do
+if p ~= player then table.insert(arr, p) end
+end
+table.sort(arr, function(a, b) return a.DisplayName:lower() < b.DisplayName:lower() end)
+sw.sub.Text = #arr .. " pemain  |  ketuk: netral > teman > musuh"
+for i, p in ipairs(arr) do
+local r = rel[p.Name]
+local b = button(p.DisplayName .. statusText(r), 11, list, {
+Size = UDim2.new(1, -2, 0, 30), LayoutOrder = i, TextTruncate = Enum.TextTruncate.AtEnd,
+BackgroundColor3 = r == "teman" and Color3.fromRGB(34, 170, 90) or r == "musuh" and Color3.fromRGB(190, 50, 60) or C.panel,
+})
+corner(b, 8)
+b.MouseButton1Click:Connect(function()
+local cur = rel[p.Name]
+rel[p.Name] = (cur == nil and "teman") or (cur == "teman" and "musuh") or nil
+rebuild()
+end)
+end
+end
+track(Players.PlayerAdded:Connect(function() task.delay(0.3, function() if sw.open then rebuild() end end) end))
+track(Players.PlayerRemoving:Connect(function() task.delay(0.3, function() if sw.open then rebuild() end end) end))
+makeOpenCard(pages["FITUR"], "Teman / Musuh", "Tandai pemain, nama berwarna di atas kepala", 9, sw)
+local prev = sw.onChange
+sw.onChange = function(v)
+if prev then prev(v) end
+if v then rebuild() end
+end
+Settings.extra.relasi = {
+get = function()
+local t = {}
+for n, r in pairs(rel) do t[n] = r end
+return t
+end,
+set = function(t)
+rel = {}
+for n, r in pairs(t or {}) do
+if r == "teman" or r == "musuh" then rel[tostring(n)] = r end
+end
+end,
+def = {},
+}
+local restOn, restMin, restJob = false, 30, 0
+local toastLbl = make("TextLabel", {
+Size = UDim2.new(0, 280, 0, 40), AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 70),
+BackgroundColor3 = C.bg, BackgroundTransparency = 0.1, TextColor3 = Color3.fromRGB(255, 220, 120),
+Font = Enum.Font.GothamBold, TextSize = 13, TextWrapped = true, Visible = false,
+}, gui)
+corner(toastLbl, 10)
+local function notify(txt)
+toastLbl.Text = txt
+toastLbl.Visible = true
+task.delay(8, function() toastLbl.Visible = false end)
+end
+local function startRest()
+restJob = restJob + 1
+local my = restJob
+if not restOn then return end
+task.spawn(function()
+local mins = 0
+while restJob == my and restOn and gui.Parent do
+task.wait(60)
+mins = mins + 1
+if restJob ~= my or not restOn then return end
+if mins >= restMin then
+mins = 0
+notify("Sudah " .. restMin .. " menit main. Istirahat sebentar, HP bisa panas.")
+end
+end
+end)
+end
+makeToggle(pages["MISC"], "Pengingat Istirahat", "Pesan di layar tiap sekian menit", 20, false, function(v)
+restOn = v
+startRest()
+end)
+makeNumberRow(pages["MISC"], "INTERVAL (menit)", restMin, 21, function(n)
+restMin = math.clamp(math.floor(n), 1, 240)
+startRest()
+end)
+end)
+secure("RADAR", function()
+local radarOn, warnOn, fleeOn = false, false, false
+local warnDist, fleeDist, RANGE = 60, 40, 150
+local SAFE = Vector3.new(3.07, 4.0, -36.10)
+local R = 65
+local rg = Instance.new("ScreenGui")
+rg.Name = "JxL_Radar"
+rg.ResetOnSpawn = false
+rg.DisplayOrder = 40
+pcall(function() rg.Parent = gui.Parent end)
+track({Disconnect = function() rg:Destroy() end})
+local ring = Instance.new("Frame")
+ring.Size = UDim2.new(0, R * 2, 0, R * 2)
+ring.Position = UDim2.new(0, 8, 0, 110)
+ring.BackgroundColor3 = Color3.fromRGB(10, 10, 14)
+ring.BackgroundTransparency = 0.25
+ring.Visible = false
+ring.ClipsDescendants = true
+ring.Parent = rg
+local rc = Instance.new("UICorner") rc.CornerRadius = UDim.new(1, 0) rc.Parent = ring
+local rs = Instance.new("UIStroke") rs.Color = Color3.fromRGB(255, 200, 60) rs.Thickness = 2 rs.Parent = ring
+local me = Instance.new("Frame")
+me.Size = UDim2.new(0, 8, 0, 8)
+me.AnchorPoint = Vector2.new(0.5, 0.5)
+me.Position = UDim2.new(0.5, 0, 0.5, 0)
+me.BackgroundColor3 = Color3.new(1, 1, 1)
+me.BorderSizePixel = 0
+me.Parent = ring
+local mc = Instance.new("UICorner") mc.CornerRadius = UDim.new(1, 0) mc.Parent = me
+local dots = {}
+local toastL = Instance.new("TextLabel")
+toastL.Size = UDim2.new(0.8, 0, 0, 36)
+toastL.AnchorPoint = Vector2.new(0.5, 0)
+toastL.Position = UDim2.new(0.5, 0, 0, 140)
+toastL.BackgroundColor3 = Color3.fromRGB(90, 10, 10)
+toastL.BackgroundTransparency = 0.1
+toastL.TextColor3 = Color3.new(1, 1, 1)
+toastL.Font = Enum.Font.GothamBold
+toastL.TextSize = 14
+toastL.TextWrapped = true
+toastL.Visible = false
+toastL.Parent = rg
+local tcn = Instance.new("UICorner") tcn.CornerRadius = UDim.new(0, 10) tcn.Parent = toastL
+local tjob = 0
+local function toast(t)
+tjob = tjob + 1
+local my = tjob
+toastL.Text = t
+toastL.Visible = true
+task.delay(3, function() if tjob == my then toastL.Visible = false end end)
+end
+local function relOf(p)
+local ok, t = pcall(function() return Settings.extra.relasi.get() end)
+return ok and t and t[p.Name] or nil
+end
+local function carrying()
+if (tonumber(player:GetAttribute("CarriedEggCount")) or 0) > 0 then return true end
+local ch = player.Character
+if ch then
+for _, t in ipairs(ch:GetChildren()) do
+if t:IsA("Tool") then
+local n = t.Name:lower()
+if t:GetAttribute("IsEggTool") or t:GetAttribute("EggId") ~= nil or n:find("egg", 1, true) or n:find("telur", 1, true) then return true end
+end
+end
+end
+return false
+end
+local warned, lastFlee, acc = {}, 0, 0
+track(RunService.RenderStepped:Connect(function(dt)
+acc = acc + dt
+if acc < 0.1 then return end
+acc = 0
+if not (radarOn or warnOn or fleeOn) then return end
+local h = getHRP()
+if not h then return end
+local cam = workspace.CurrentCamera
+local look = cam and cam.CFrame.LookVector or Vector3.new(0, 0, -1)
+local ang = math.atan2(look.X, -look.Z)
+local ca, sa = math.cos(ang), math.sin(ang)
+local used, nearest, nearP = {}, math.huge, nil
+for _, p in ipairs(Players:GetPlayers()) do
+if p ~= player then
+local ch = p.Character
+local r = ch and ch:FindFirstChild("HumanoidRootPart")
+if r then
+local d3 = r.Position - h.Position
+local dist = d3.Magnitude
+local rl = relOf(p)
+if rl ~= "teman" and dist < nearest then nearest, nearP = dist, p end
+if radarOn then
+local dx, dz = d3.X, d3.Z
+local rx = dx * ca + dz * sa
+local ry = dz * ca - dx * sa
+local sc = (R - 6) / RANGE
+local px, py = rx * sc, ry * sc
+local m = math.sqrt(px * px + py * py)
+if m > R - 6 then px, py = px / m * (R - 6), py / m * (R - 6) end
+local dt2 = dots[p]
+if not dt2 then
+dt2 = Instance.new("Frame")
+dt2.Size = UDim2.new(0, 7, 0, 7)
+dt2.AnchorPoint = Vector2.new(0.5, 0.5)
+dt2.BorderSizePixel = 0
+local c2 = Instance.new("UICorner") c2.CornerRadius = UDim.new(1, 0) c2.Parent = dt2
+dt2.Parent = ring
+dots[p] = dt2
+end
+dt2.Position = UDim2.new(0.5, px, 0.5, py)
+dt2.BackgroundColor3 = rl == "teman" and Color3.fromRGB(60, 220, 120) or (rl == "musuh" and Color3.fromRGB(255, 60, 60) or Color3.fromRGB(255, 220, 60))
+dt2.Visible = true
+used[p] = true
+end
+end
+end
+end
+for p, f in pairs(dots) do
+if not used[p] then f.Visible = false end
+if not p.Parent then f:Destroy() dots[p] = nil end
+end
+if nearP then
+if warnOn and nearest <= warnDist then
+local now = os.clock()
+if not warned[nearP] or now - warned[nearP] > 6 then
+warned[nearP] = now
+toast("Pemain dekat: " .. nearP.DisplayName .. " (" .. math.floor(nearest) .. " stud)")
+end
+end
+if fleeOn and nearest <= fleeDist and carrying() and os.clock() - lastFlee > 5 then
+lastFlee = os.clock()
+h.CFrame = CFrame.new(SAFE)
+toast("Kabur ke Zona Aman: " .. nearP.DisplayName .. " mendekat")
+end
+end
+end))
+makeToggle(pages["FITUR"], "Radar Mini", "Titik pemain sekitar di pojok layar", 30, false, function(v)
+radarOn = v
+ring.Visible = v
+end)
+makeToggle(pages["FITUR"], "Peringatan Pemain Mendekat", "Teks merah saat pemain dekat", 31, false, function(v) warnOn = v end)
+makeNumberRow(pages["FITUR"], "JARAK PERINGATAN (stud)", warnDist, 32, function(n) warnDist = math.clamp(n, 10, 300) end)
+makeToggle(pages["FITUR"], "Auto Kabur Saat Dikejar", "Bawa telur + pemain non-teman dekat -> Zona Aman", 33, false, function(v) fleeOn = v end)
+makeNumberRow(pages["FITUR"], "JARAK KABUR (stud)", fleeDist, 34, function(n) fleeDist = math.clamp(n, 5, 200) end)
 end)
 secure("SERVER", function()
 local sw = makeSubWindow("SERVER HOP", "Pindah / refresh / rejoin", 240, 300)
