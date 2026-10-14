@@ -1,4 +1,4 @@
--- JOKERxLynxx v13 BETA | Jump for Animals | rapi + radar/peringatan/auto kabur
+-- JOKERxLynxx v13 BETA | Jump for Animals
 print("[JxL] script mulai dijalankan")
 if _G.JxL_Cleanup then pcall(_G.JxL_Cleanup) end
 local statusLbl
@@ -2345,6 +2345,354 @@ makeToggle(pages["FITUR"], "Peringatan Pemain Mendekat", "Teks merah saat pemain
 makeNumberRow(pages["FITUR"], "JARAK PERINGATAN (stud)", warnDist, 32, function(n) warnDist = math.clamp(n, 10, 300) end)
 makeToggle(pages["FITUR"], "Auto Kabur Saat Dikejar", "Bawa telur + pemain non-teman dekat -> Zona Aman", 33, false, function(v) fleeOn = v end)
 makeNumberRow(pages["FITUR"], "JARAK KABUR (stud)", fleeDist, 34, function(n) fleeDist = math.clamp(n, 5, 200) end)
+end)
+secure("EXTRA3", function()
+local Lighting = game:GetService("Lighting")
+local rcol = {Umum = Color3.fromRGB(200, 200, 200), Langka = Color3.fromRGB(80, 160, 255), Legendaris = Color3.fromRGB(255, 190, 40), Ilahi = Color3.fromRGB(255, 90, 220), Eternal = Color3.fromRGB(255, 60, 60)}
+local espOn = false
+local tags = {}
+local function rarityOf(m)
+local o = m
+for _ = 1, 4 do
+if not o or o == workspace then break end
+for k, v in pairs(o:GetAttributes()) do
+if tostring(k):lower():find("rarity", 1, true) then return tostring(v) end
+end
+o = o.Parent
+end
+local nm = m.Name:lower()
+if nm:find("hyena egg", 1, true) or nm:find("siege crawler egg", 1, true) then return "Eternal" end
+return nil
+end
+local function addTag(pp)
+if not espOn or tags[pp] then return end
+local at = ((pp.ActionText or "") .. " " .. (pp.ObjectText or "")):lower()
+if not (at:find("curi", 1, true) or at:find("steal", 1, true)) then return end
+local m = pp:FindFirstAncestorOfClass("Model") or pp.Parent
+if not m or m.Name:lower():find("debris", 1, true) then return end
+local part = m:IsA("Model") and (m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart", true)) or m
+if not (part and part:IsA("BasePart")) then return end
+local r = rarityOf(m)
+local b = Instance.new("BillboardGui")
+b.Name = "JxL_EggTag"
+b.Size = UDim2.new(0, 150, 0, 34)
+b.StudsOffset = Vector3.new(0, 3, 0)
+b.AlwaysOnTop = true
+b.Adornee = part
+local t = Instance.new("TextLabel")
+t.Size = UDim2.new(1, 0, 1, 0)
+t.BackgroundTransparency = 1
+t.Font = Enum.Font.GothamBlack
+t.TextSize = 13
+t.TextWrapped = true
+t.TextStrokeTransparency = 0
+t.TextColor3 = rcol[r or ""] or Color3.fromRGB(255, 255, 255)
+t.Text = m.Name .. (r and (" [" .. r .. "]") or "")
+t.Parent = b
+b.Parent = player:FindFirstChildOfClass("PlayerGui") or gui
+tags[pp] = {b = b, t = t, base = t.Text, part = part}
+end
+local function clearTags()
+for pp, d in pairs(tags) do pcall(function() d.b:Destroy() end) tags[pp] = nil end
+end
+local function scanTags()
+local n = 0
+for _, o in ipairs(workspace:GetDescendants()) do
+if not espOn then return end
+if o:IsA("ProximityPrompt") then pcall(addTag, o) end
+n = n + 1
+if n % 400 == 0 then task.wait() end
+end
+end
+track(workspace.DescendantAdded:Connect(function(o)
+if espOn and o:IsA("ProximityPrompt") then task.delay(0.6, function() pcall(addTag, o) end) end
+end))
+task.spawn(function()
+while gui.Parent do
+task.wait(0.5)
+if espOn then
+local h = getHRP()
+for pp, d in pairs(tags) do
+if not pp.Parent or not d.part.Parent then
+pcall(function() d.b:Destroy() end)
+tags[pp] = nil
+elseif h then
+d.t.Text = d.base .. "\n" .. math.floor((d.part.Position - h.Position).Magnitude) .. " stud"
+end
+end
+end
+end
+end)
+track({Disconnect = function() clearTags() end})
+makeToggle(pages["EGG"], "Penanda Telur di Layar", "Nama, kelangkaan & jarak telur (tembus dinding)", 11, false, function(v)
+espOn = v
+if v then task.spawn(scanTags) else clearTags() end
+end)
+local specOn, specIdx = false, 0
+local specBtn
+local function cands()
+local t = {}
+for _, p in ipairs(Players:GetPlayers()) do
+if p ~= player then table.insert(t, p) end
+end
+return t
+end
+local function ownHum()
+local ch = player.Character
+return ch and ch:FindFirstChildOfClass("Humanoid")
+end
+local function specTarget()
+local t = cands()
+if #t == 0 then return nil end
+if specIdx < 1 or specIdx > #t then specIdx = 1 end
+return t[specIdx]
+end
+local function applySpec()
+local cam = workspace.CurrentCamera
+if not cam then return end
+if specOn then
+local p = specTarget()
+local hum = p and p.Character and p.Character:FindFirstChildOfClass("Humanoid")
+if hum then cam.CameraSubject = hum end
+if specBtn then specBtn.Text = "AMATI: " .. (p and p.DisplayName or "(tidak ada pemain)") .. " (ketuk ganti)" end
+else
+local h = ownHum()
+if h then cam.CameraSubject = h end
+if specBtn then specBtn.Text = "AMATI: mati (ketuk untuk pilih pemain)" end
+end
+end
+specBtn = button("AMATI: mati (ketuk untuk pilih pemain)", 11, pages["FITUR"], {
+Size = UDim2.new(1, -2, 0, 30), BackgroundColor3 = C.panel2, LayoutOrder = 41,
+})
+corner(specBtn, 8)
+specBtn.MouseButton1Click:Connect(function()
+local t = cands()
+if #t == 0 then specOn = false applySpec() return end
+if specOn then specIdx = specIdx % #t + 1 else specOn = true; specIdx = math.max(specIdx, 1) end
+applySpec()
+end)
+local stopBtn = button("BERHENTI MENGAMATI", 11, pages["FITUR"], {
+Size = UDim2.new(1, -2, 0, 30), BackgroundColor3 = C.panel2, LayoutOrder = 42,
+})
+corner(stopBtn, 8)
+stopBtn.MouseButton1Click:Connect(function()
+specOn = false
+applySpec()
+end)
+task.spawn(function()
+while gui.Parent do
+task.wait(0.7)
+if specOn then applySpec() end
+end
+end)
+track({Disconnect = function() specOn = false pcall(applySpec) end})
+local batOn = false
+local saved = {}
+local parts = setmetatable({}, {__mode = "k"})
+local function setCap(n) pcall(function() setfpscap(n) end) end
+local function enableBat()
+pcall(function() saved.q = settings().Rendering.QualityLevel end)
+pcall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Level01 end)
+pcall(function() saved.sh = Lighting.GlobalShadows Lighting.GlobalShadows = false end)
+setCap(30)
+task.spawn(function()
+local n = 0
+for _, o in ipairs(workspace:GetDescendants()) do
+if not batOn then return end
+if (o:IsA("ParticleEmitter") or o:IsA("Trail") or o:IsA("Smoke") or o:IsA("Fire") or o:IsA("Sparkles")) and o.Enabled then
+parts[o] = true
+o.Enabled = false
+end
+n = n + 1
+if n % 500 == 0 then task.wait() end
+end
+end)
+end
+local function disableBat()
+pcall(function() if saved.q then settings().Rendering.QualityLevel = saved.q end end)
+pcall(function() if saved.sh ~= nil then Lighting.GlobalShadows = saved.sh end end)
+setCap(60)
+for o in pairs(parts) do pcall(function() o.Enabled = true end) end
+table.clear(parts)
+end
+makeToggle(pages["MISC"], "Mode Hemat Baterai", "FPS 30, grafis rendah, efek dimatikan", 30, false, function(v)
+batOn = v
+if v then enableBat() else disableBat() end
+end)
+track({Disconnect = function() if batOn then batOn = false disableBat() end end})
+end)
+secure("AREAMAP", function()
+local sw = makeSubWindow("RADAR AREA", "Peta 2D semua area", 260, 372, 0)
+sw.content.Visible = false
+local AREAS = {
+{"Zona Aman", Vector3.new(3.07, 1.00, -36.10), Color3.fromRGB(60, 220, 120)},
+{"Teman", Vector3.new(-0.13, 4.87, -139.63), Color3.fromRGB(80, 160, 255)},
+{"Savana", Vector3.new(-4.10, 6275.48, -1408.76), Color3.fromRGB(255, 200, 60)},
+{"Volcano", Vector3.new(-18.72, 9638.99, -1500.00), Color3.fromRGB(255, 90, 60)},
+}
+local S = 236
+local mapF = make("Frame", {
+Size = UDim2.new(0, S, 0, S), Position = UDim2.new(0, 12, 0, 50),
+BackgroundColor3 = Color3.fromRGB(8, 8, 12), BackgroundTransparency = 0.1, ClipsDescendants = true,
+}, sw.win)
+corner(mapF, 10)
+stroke(mapF, C.purple, 1.5, 0.3)
+local mode, areaIdx, zoomIdx = 1, 1, 2 -- mode 1 = 2D semua, 2 = per area
+local zooms = {150, 300, 600}
+local pool, used = {}, 0
+local function dot(px, py, col, size, txt)
+used = used + 1
+local f = pool[used]
+if not f then
+f = Instance.new("Frame")
+f.AnchorPoint = Vector2.new(0.5, 0.5)
+f.BorderSizePixel = 0
+local c = Instance.new("UICorner") c.CornerRadius = UDim.new(1, 0) c.Parent = f
+local t = Instance.new("TextLabel")
+t.Name = "T"
+t.BackgroundTransparency = 1
+t.Size = UDim2.new(0, 90, 0, 12)
+t.Position = UDim2.new(0.5, -45, 0, -13)
+t.Font = Enum.Font.GothamBold
+t.TextSize = 10
+t.TextStrokeTransparency = 0.3
+t.Parent = f
+f.Parent = mapF
+pool[used] = f
+end
+f.Visible = true
+f.Size = UDim2.new(0, size, 0, size)
+f.Position = UDim2.new(0, px, 0, py)
+f.BackgroundColor3 = col
+f.T.Text = txt or ""
+f.T.TextColor3 = col
+end
+local eggs = {}
+local function scanEggs()
+local n = 0
+for _, o in ipairs(workspace:GetDescendants()) do
+if not sw.open then return end
+if o:IsA("ProximityPrompt") and not eggs[o] then
+local at = ((o.ActionText or "") .. " " .. (o.ObjectText or "")):lower()
+if at:find("curi", 1, true) or at:find("steal", 1, true) then
+local m = o:FindFirstAncestorOfClass("Model") or o.Parent
+local part = m and (m:IsA("Model") and (m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart", true)) or m)
+if part and part:IsA("BasePart") and not m.Name:lower():find("debris", 1, true) then eggs[o] = part end
+end
+end
+n = n + 1
+if n % 400 == 0 then task.wait() end
+end
+end
+local function relOf(p)
+local ok, t = pcall(function() return Settings.extra.relasi.get() end)
+return ok and t and t[p.Name] or nil
+end
+local function render()
+used = 0
+local h = getHRP()
+local cx, cz, range, ymid
+if mode == 1 then
+local x0, x1, z0, z1 = math.huge, -math.huge, math.huge, -math.huge
+for _, a in ipairs(AREAS) do
+x0, x1 = math.min(x0, a[2].X), math.max(x1, a[2].X)
+z0, z1 = math.min(z0, a[2].Z), math.max(z1, a[2].Z)
+end
+cx, cz = (x0 + x1) / 2, (z0 + z1) / 2
+range = math.max(x1 - x0, z1 - z0, 200) / 2 + 80
+else
+local a = AREAS[areaIdx]
+cx, cz, range, ymid = a[2].X, a[2].Z, zooms[zoomIdx], a[2].Y
+end
+local sc = (S / 2 - 8) / range
+local function pos(v)
+local px = S / 2 + (v.X - cx) * sc
+local py = S / 2 + (v.Z - cz) * sc
+return math.clamp(px, 4, S - 4), math.clamp(py, 4, S - 4)
+end
+local function inBand(v) return mode == 1 or math.abs(v.Y - ymid) < 400 end
+for i, a in ipairs(AREAS) do
+local px, py = pos(a[2])
+dot(px, py, a[3], (mode == 2 and i == areaIdx) and 12 or 9, a[1])
+end
+for pp, part in pairs(eggs) do
+if not pp.Parent or not part.Parent then eggs[pp] = nil
+elseif inBand(part.Position) then
+local px, py = pos(part.Position)
+dot(px, py, Color3.fromRGB(255, 120, 230), 6, "")
+end
+end
+for _, p in ipairs(Players:GetPlayers()) do
+if p ~= player then
+local r = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
+if r and inBand(r.Position) then
+local rl = relOf(p)
+local col = rl == "teman" and Color3.fromRGB(60, 220, 120) or (rl == "musuh" and Color3.fromRGB(255, 60, 60) or Color3.fromRGB(255, 255, 90))
+local px, py = pos(r.Position)
+dot(px, py, col, 7, mode == 2 and p.DisplayName or "")
+end
+end
+end
+if h and inBand(h.Position) then
+local px, py = pos(h.Position)
+dot(px, py, Color3.new(1, 1, 1), 9, "KAMU")
+end
+for i = used + 1, #pool do pool[i].Visible = false end
+sw.sub.Text = mode == 1 and "Peta 2D: semua area" or ("Per area: " .. AREAS[areaIdx][1] .. " (" .. range .. " stud)")
+end
+local modeBtn = button("MODE: 2D SEMUA", 11, sw.win, {Size = UDim2.new(0, 112, 0, 30), Position = UDim2.new(0, 12, 0, 294), BackgroundColor3 = C.panel2})
+corner(modeBtn, 8)
+local areaBtn = button("AREA: Zona Aman", 11, sw.win, {Size = UDim2.new(0, 112, 0, 30), Position = UDim2.new(0, 136, 0, 294), BackgroundColor3 = C.panel2})
+corner(areaBtn, 8)
+local zoomBtn = button("ZOOM: 300", 11, sw.win, {Size = UDim2.new(0, 112, 0, 30), Position = UDim2.new(0, 12, 0, 330), BackgroundColor3 = C.panel2})
+corner(zoomBtn, 8)
+local tpBtn = button("TELEPORT KE AREA", 11, sw.win, {Size = UDim2.new(0, 112, 0, 30), Position = UDim2.new(0, 136, 0, 330), BackgroundColor3 = C.blue})
+corner(tpBtn, 8)
+modeBtn.MouseButton1Click:Connect(function()
+mode = mode % 2 + 1
+modeBtn.Text = mode == 1 and "MODE: 2D SEMUA" or "MODE: PER AREA"
+render()
+end)
+areaBtn.MouseButton1Click:Connect(function()
+areaIdx = areaIdx % #AREAS + 1
+areaBtn.Text = "AREA: " .. AREAS[areaIdx][1]
+mode = 2
+modeBtn.Text = "MODE: PER AREA"
+render()
+end)
+zoomBtn.MouseButton1Click:Connect(function()
+zoomIdx = zoomIdx % #zooms + 1
+zoomBtn.Text = "ZOOM: " .. zooms[zoomIdx]
+render()
+end)
+tpBtn.MouseButton1Click:Connect(function()
+local h = getHRP()
+if h then
+h.CFrame = CFrame.new(AREAS[areaIdx][2] + Vector3.new(0, 4, 0))
+end
+end)
+local prev = sw.onChange
+sw.onChange = function(v)
+if prev then prev(v) end
+if v then
+task.spawn(function()
+while sw.open and gui.Parent do
+pcall(scanEggs)
+for _ = 1, 24 do
+if not sw.open then break end
+task.wait(0.25)
+end
+end
+end)
+task.spawn(function()
+while sw.open and gui.Parent do
+pcall(render)
+task.wait(0.25)
+end
+end)
+end
+end
+makeOpenCard(pages["FITUR"], "Radar Area", "Peta 2D semua area, atau per area", 36, sw)
 end)
 secure("SERVER", function()
 local sw = makeSubWindow("SERVER HOP", "Pindah / refresh / rejoin", 240, 300)
