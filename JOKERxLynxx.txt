@@ -1,0 +1,2863 @@
+print("[JxL] script mulai dijalankan")
+if _G.JxL_Cleanup then pcall(_G.JxL_Cleanup) end
+local statusLbl
+pcall(function()
+local pg = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui", 10)
+local old = pg:FindFirstChild("JxL_Status")
+if old then old:Destroy() end
+local g = Instance.new("ScreenGui")
+g.Name = "JxL_Status"
+g.ResetOnSpawn = false
+g.DisplayOrder = 1000
+g.Parent = pg
+local t = Instance.new("TextLabel")
+t.Size = UDim2.new(0, 300, 0, 28)
+t.Position = UDim2.new(0.5, -150, 0, 6)
+t.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+t.BackgroundTransparency = 0.2
+t.TextColor3 = Color3.fromRGB(255, 255, 255)
+t.TextSize = 12
+t.TextWrapped = true
+t.Font = Enum.Font.GothamBold
+t.Text = "JOKERxLynxx: memuat..."
+t.Parent = g
+statusLbl = t
+end)
+local function setStatus(txt, color, life)
+print("[JxL] " .. txt)
+if statusLbl and statusLbl.Parent then
+statusLbl.Text = txt
+statusLbl.TextColor3 = color or Color3.fromRGB(255, 255, 255)
+if life then
+task.delay(life, function()
+if statusLbl and statusLbl.Parent and statusLbl.Parent.Parent then
+statusLbl.Parent:Destroy()
+end
+end)
+end
+end
+end
+local okAll, errAll = pcall(function()
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local player = Players.LocalPlayer
+local conns = {}
+local function track(c) table.insert(conns, c) return c end
+local errors = {}
+local function secure(name, fn)
+local ok, err = pcall(fn)
+if not ok then
+warn("[JOKERxLynxx] Error di " .. name .. ": " .. tostring(err))
+table.insert(errors, name .. ": " .. tostring(err))
+end
+end
+local flyCleanup
+local featCleanup
+local miscCleanup
+local espCleanup
+local playerCleanup
+local abyssCleanup
+local instantCleanup
+local fakeCleanup
+local followCleanup
+local logCleanup
+local activeTween
+local function getChar() return player.Character end
+local function getHRP()
+local ch = player.Character
+return ch and ch:FindFirstChild("HumanoidRootPart")
+end
+local function getHum()
+local ch = player.Character
+return ch and ch:FindFirstChildOfClass("Humanoid")
+end
+local stdParts = {}
+for _, n in ipairs({"Head", "Torso", "UpperTorso", "LowerTorso", "HumanoidRootPart", "Left Arm", "Right Arm",
+"Left Leg", "Right Leg", "LeftUpperArm", "LeftLowerArm", "LeftHand", "RightUpperArm", "RightLowerArm",
+"RightHand", "LeftUpperLeg", "LeftLowerLeg", "LeftFoot", "RightUpperLeg", "RightLowerLeg", "RightFoot"}) do
+stdParts[n] = true
+end
+local function findHeld()
+local ch = player.Character
+if not ch then return nil end
+local tool = ch:FindFirstChildOfClass("Tool")
+if tool then return tool end
+for _, c in ipairs(ch:GetChildren()) do
+if c:IsA("Model") or (c:IsA("BasePart") and not stdParts[c.Name]) then return c end
+end
+return nil
+end
+local C = {
+bg = Color3.fromRGB(13, 13, 22),
+panel = Color3.fromRGB(22, 22, 34),
+panel2 = Color3.fromRGB(32, 32, 48),
+text = Color3.fromRGB(240, 240, 248),
+muted = Color3.fromRGB(150, 150, 170),
+on = Color3.fromRGB(60, 160, 90),
+purple = Color3.fromRGB(124, 77, 255),
+pink = Color3.fromRGB(236, 72, 153),
+blue = Color3.fromRGB(37, 99, 235),
+red = Color3.fromRGB(95, 28, 40),
+}
+local SND_ID = "rbxasset://sounds/button.wav"
+local soundOn = true
+local SoundService = game:GetService("SoundService")
+local Debris = game:GetService("Debris")
+local clickSound = Instance.new("Sound")
+clickSound.Name = "JxL_Click"
+clickSound.SoundId = SND_ID
+clickSound.Volume = 0.6
+local function playClick(speed)
+if not soundOn then return end
+pcall(function()
+local snd = clickSound:Clone()
+snd.PlaybackSpeed = speed or 1
+snd.Parent = SoundService
+snd:Play()
+Debris:AddItem(snd, 2)
+end)
+end
+local function make(class, props, parent)
+local o = Instance.new(class)
+for k, v in pairs(props or {}) do o[k] = v end
+o.Parent = parent
+return o
+end
+local function corner(o, r) return make("UICorner", {CornerRadius = UDim.new(0, r or 8)}, o) end
+local themeGrads, themeStrokes, themeScrolls, themeTexts = {}, {}, {}, {}
+C.accent = C.pink
+local function regText(o)
+local role
+if o.TextColor3 == C.text then role = "text"
+elseif o.TextColor3 == C.muted then role = "muted"
+elseif o.TextColor3 == C.pink then role = "accent" end
+if role then table.insert(themeTexts, {o, role}) end
+end
+local function stroke(o, color, th, tr)
+local st = make("UIStroke", {Color = color, Thickness = th or 1, Transparency = tr or 0,
+ApplyStrokeMode = Enum.ApplyStrokeMode.Border}, o)
+if color == C.purple then table.insert(themeStrokes, st) end
+return st
+end
+local function gradient(o, c1, c2, rot)
+local g = make("UIGradient", {Color = ColorSequence.new(c1, c2), Rotation = rot or 0}, o)
+if c1 == C.purple and c2 == C.pink then table.insert(themeGrads, g) end
+return g
+end
+local function label(text, size, color, parent, props)
+local l = make("TextLabel", {
+Text = text, TextSize = size, TextColor3 = color, BackgroundTransparency = 1,
+Font = Enum.Font.GothamBold, TextXAlignment = Enum.TextXAlignment.Left,
+}, nil)
+for k, v in pairs(props or {}) do l[k] = v end
+regText(l)
+l.Parent = parent
+return l
+end
+local function button(text, size, parent, props)
+local b = make("TextButton", {
+Text = text, TextSize = size, TextColor3 = C.text, Font = Enum.Font.GothamBold,
+BackgroundColor3 = C.panel2, AutoButtonColor = true,
+}, nil)
+for k, v in pairs(props or {}) do b[k] = v end
+regText(b)
+b.Parent = parent
+b.MouseButton1Click:Connect(function() playClick(1) end)
+return b
+end
+local function inputBox(text, parent, props)
+local b = make("TextBox", {
+Text = text, TextSize = 14, TextColor3 = C.text, BackgroundColor3 = C.panel2,
+Font = Enum.Font.GothamBold, ClearTextOnFocus = false,
+}, nil)
+for k, v in pairs(props or {}) do b[k] = v end
+corner(b, 10)
+stroke(b, C.purple, 1.5, 0.3)
+regText(b)
+b.Parent = parent
+return b
+end
+local Settings = {toggles = {}, nums = {}, extra = {}}
+local noSaveToggle = {["Auto Farm Kristal"] = true, ["Fly"] = true}
+local function makeToggle(page, title, desc, order, initial, onChange)
+local card = make("Frame", {
+Size = UDim2.new(1, -6, 0, 46), BackgroundColor3 = C.panel,
+BackgroundTransparency = 0.2, LayoutOrder = order,
+}, page)
+corner(card, 10)
+label(title, 13, C.text, card, {Size = UDim2.new(1, -70, 0, 20), Position = UDim2.new(0, 12, 0, 5)})
+label(desc, 10, C.muted, card, {
+Font = Enum.Font.Gotham, Size = UDim2.new(1, -70, 0, 16), Position = UDim2.new(0, 12, 0, 25),
+TextTruncate = Enum.TextTruncate.AtEnd,
+})
+local state = initial and true or false
+local sw = make("TextButton", {
+Text = "", Size = UDim2.new(0, 44, 0, 24), Position = UDim2.new(1, -56, 0.5, -12),
+BackgroundColor3 = state and C.on or C.panel2, AutoButtonColor = false,
+}, card)
+corner(sw, 12)
+local knob = make("Frame", {
+Size = UDim2.new(0, 18, 0, 18),
+Position = state and UDim2.new(1, -21, 0.5, -9) or UDim2.new(0, 3, 0.5, -9),
+BackgroundColor3 = C.text,
+}, sw)
+corner(knob, 9)
+local function visual(v)
+state = v and true or false
+TweenService:Create(knob, TweenInfo.new(0.15), {
+Position = state and UDim2.new(1, -21, 0.5, -9) or UDim2.new(0, 3, 0.5, -9),
+}):Play()
+TweenService:Create(sw, TweenInfo.new(0.15), {BackgroundColor3 = state and C.on or C.panel2}):Play()
+end
+local function set(v)
+local ok, r = pcall(onChange, v)
+if not ok then
+warn("[JOKERxLynxx] Error toggle " .. title .. ": " .. tostring(r))
+return
+end
+if r == false then return end
+visual(v)
+playClick(v and 1.25 or 0.8)
+end
+sw.MouseButton1Click:Connect(function() set(not state) end)
+if not noSaveToggle[title] then
+Settings.toggles[title] = {set = set, get = function() return state end, def = state}
+end
+return set, visual
+end
+local function makeNumberRow(page, title, default, order, onChange)
+local row = make("Frame", {Size = UDim2.new(1, -6, 0, 34), BackgroundTransparency = 1, LayoutOrder = order}, page)
+label(title, 11, C.muted, row, {Size = UDim2.new(0.55, 0, 1, 0)})
+local box = inputBox(tostring(default), row, {
+Size = UDim2.new(0.45, 0, 1, -4), Position = UDim2.new(0.55, 0, 0, 2),
+TextXAlignment = Enum.TextXAlignment.Center,
+})
+box.FocusLost:Connect(function()
+local n = tonumber(box.Text)
+if n then onChange(n) end
+end)
+Settings.nums[title] = {
+get = function() return tonumber(box.Text) end,
+set = function(v) box.Text = tostring(v) onChange(v) end,
+def = default,
+}
+return box
+end
+print("[JxL] membuat window")
+local gui = Instance.new("ScreenGui")
+gui.Name = "JOKERxLynxx"
+gui.ResetOnSpawn = false
+gui.DisplayOrder = 999
+local okParent = pcall(function()
+gui.Parent = (gethui and gethui()) or game:GetService("CoreGui")
+end)
+if not okParent or not gui.Parent then
+gui.Parent = player:WaitForChild("PlayerGui")
+end
+_G.JxL_Cleanup = function()
+if flyCleanup then pcall(flyCleanup) end
+if featCleanup then pcall(featCleanup) end
+if miscCleanup then pcall(miscCleanup) end
+if espCleanup then pcall(espCleanup) end
+if playerCleanup then pcall(playerCleanup) end
+if abyssCleanup then pcall(abyssCleanup) end
+if instantCleanup then pcall(instantCleanup) end
+if fakeCleanup then pcall(fakeCleanup) end
+if followCleanup then pcall(followCleanup) end
+if logCleanup then pcall(logCleanup) end
+if activeTween then pcall(function() activeTween:Cancel() end) end
+for _, c in ipairs(conns) do pcall(function() c:Disconnect() end) end
+conns = {}
+pcall(function() gui:Destroy() end)
+_G.JxL_Cleanup = nil
+end
+local W, FULL_H, HEAD_H = 270, 290, 50
+local main = make("Frame", {
+Size = UDim2.new(0, W, 0, FULL_H), Position = UDim2.new(0.5, -W / 2, 0.5, -FULL_H / 2),
+BackgroundColor3 = C.bg, BackgroundTransparency = 0.25, ClipsDescendants = true,
+}, gui)
+corner(main, 16)
+local mainStroke = stroke(main, C.purple, 2)
+gradient(mainStroke, C.purple, C.pink, 45)
+local header = make("Frame", {Size = UDim2.new(1, 0, 0, HEAD_H), BackgroundTransparency = 1}, main)
+local dot = make("Frame", {
+Size = UDim2.new(0, 14, 0, 14), Position = UDim2.new(0, 14, 0, 18), BackgroundColor3 = Color3.new(1, 1, 1),
+}, header)
+corner(dot, 7)
+gradient(dot, C.purple, C.pink, 45)
+label("JOKERxLynxx", 18, C.text, header, {Size = UDim2.new(0, 160, 0, 24), Position = UDim2.new(0, 36, 0, 6)})
+local betaPill = make("Frame", {
+Size = UDim2.new(0, 38, 0, 15), Position = UDim2.new(0, 152, 0, 10), BackgroundColor3 = Color3.new(1, 1, 1),
+}, header)
+corner(betaPill, 8)
+gradient(betaPill, C.purple, C.pink, 0)
+label("BETA", 9, Color3.new(1, 1, 1), betaPill, {
+Size = UDim2.new(1, 0, 1, 0), TextXAlignment = Enum.TextXAlignment.Center,
+})
+label("UNIVERSAL V2", 10, C.muted, header, {Size = UDim2.new(0, 80, 0, 14), Position = UDim2.new(0, 36, 0, 28)})
+label("tt.annantmng", 10, C.pink, header, {Size = UDim2.new(0, 110, 0, 14), Position = UDim2.new(0, 120, 0, 28)})
+local setBtn = button("*", 16, header, {
+Size = UDim2.new(0, 28, 0, 28), Position = UDim2.new(1, -40, 0, 11), BackgroundColor3 = C.bg,
+})
+corner(setBtn, 14)
+stroke(setBtn, C.purple, 1.5, 0.3)
+local line = make("Frame", {
+Size = UDim2.new(1, -24, 0, 2), Position = UDim2.new(0, 12, 0, HEAD_H - 2),
+BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0,
+}, main)
+gradient(line, C.purple, C.pink, 0)
+secure("Drag", function()
+local dragging, dragStart, startPos
+track(header.InputBegan:Connect(function(i)
+if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+dragging, dragStart, startPos = true, i.Position, main.Position
+local c; c = i.Changed:Connect(function()
+if i.UserInputState == Enum.UserInputState.End then dragging = false c:Disconnect() end
+end)
+end
+end))
+track(UserInputService.InputChanged:Connect(function(i)
+if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement
+or i.UserInputType == Enum.UserInputType.Touch) then
+local d = i.Position - dragStart
+main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X,
+startPos.Y.Scale, startPos.Y.Offset + d.Y)
+end
+end))
+end)
+local body = make("Frame", {
+Size = UDim2.new(1, 0, 1, -HEAD_H), Position = UDim2.new(0, 0, 0, HEAD_H), BackgroundTransparency = 1,
+}, main)
+secure("Gelembung", function()
+local bubble = make("TextButton", {
+Name = "Bubble", Text = "JxL", TextSize = 12, Font = Enum.Font.GothamBlack,
+TextColor3 = Color3.new(1, 1, 1), AutoButtonColor = false,
+Size = UDim2.new(0, 44, 0, 44), Position = UDim2.new(0, 14, 0.5, -60),
+BackgroundColor3 = C.bg, BackgroundTransparency = 0.15,
+}, gui)
+corner(bubble, 22)
+local bs = stroke(bubble, C.purple, 2)
+gradient(bs, C.purple, C.pink, 45)
+local pressing, moved, startInput, startPos
+track(bubble.InputBegan:Connect(function(i)
+if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+pressing, moved, startInput, startPos = true, false, i.Position, bubble.Position
+local c; c = i.Changed:Connect(function()
+if i.UserInputState == Enum.UserInputState.End then
+c:Disconnect()
+pressing = false
+if not moved then
+main.Visible = not main.Visible
+playClick(1)
+bubble.BackgroundTransparency = main.Visible and 0.15 or 0.5
+end
+end
+end)
+end
+end))
+track(UserInputService.InputChanged:Connect(function(i)
+if pressing and (i.UserInputType == Enum.UserInputType.MouseMovement
+or i.UserInputType == Enum.UserInputType.Touch) then
+local d = i.Position - startInput
+if moved or d.Magnitude > 8 then
+moved = true
+bubble.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X,
+startPos.Y.Scale, startPos.Y.Offset + d.Y)
+end
+end
+end))
+end)
+local tabBar = make("ScrollingFrame", {
+Size = UDim2.new(1, -16, 0, 30), Position = UDim2.new(0, 8, 0, 6), BackgroundColor3 = C.panel,
+BackgroundTransparency = 0.3, BorderSizePixel = 0, ScrollBarThickness = 0,
+ScrollingDirection = Enum.ScrollingDirection.X, CanvasSize = UDim2.new(0, 0, 0, 0),
+AutomaticCanvasSize = Enum.AutomaticSize.X, ElasticBehavior = Enum.ElasticBehavior.Always,
+}, body)
+corner(tabBar, 10)
+stroke(tabBar, C.panel2, 1)
+make("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, SortOrder = Enum.SortOrder.LayoutOrder}, tabBar)
+local pagesHolder = make("Frame", {
+Size = UDim2.new(1, -16, 1, -50), Position = UDim2.new(0, 8, 0, 44), BackgroundTransparency = 1,
+}, body)
+local pages, tabBtns = {}, {}
+local function newPage(key)
+local p = make("ScrollingFrame", {
+Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, BorderSizePixel = 0,
+ScrollBarThickness = 4, ScrollBarImageColor3 = C.purple, CanvasSize = UDim2.new(0, 0, 0, 0),
+AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y,
+ElasticBehavior = Enum.ElasticBehavior.Always, Visible = false,
+}, pagesHolder)
+make("UIListLayout", {Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder}, p)
+make("UIPadding", {PaddingBottom = UDim.new(0, 10), PaddingRight = UDim.new(0, 2)}, p)
+pages[key] = p
+table.insert(themeScrolls, p)
+return p
+end
+local function selectTab(key)
+for k, p in pairs(pages) do p.Visible = (k == key) end
+for k, b in pairs(tabBtns) do
+local active = (k == key)
+b.BackgroundTransparency = active and 0 or 1
+b.TextColor3 = active and Color3.new(1, 1, 1) or C.muted
+if active then
+pcall(function()
+local maxX = math.max(0, tabBar.AbsoluteCanvasSize.X - tabBar.AbsoluteSize.X)
+local target = b.AbsolutePosition.X - tabBar.AbsolutePosition.X + tabBar.CanvasPosition.X
+- (tabBar.AbsoluteSize.X - b.AbsoluteSize.X) / 2
+TweenService:Create(tabBar, TweenInfo.new(0.2), {
+CanvasPosition = Vector2.new(math.clamp(target, 0, maxX), 0),
+}):Play()
+end)
+end
+end
+end
+for idx, t in ipairs({{"EGG", "EGG"}, {"TP / SP", "TPSP"}, {"FITUR", "FITUR"}, {"PLAYER", "PLAYER"}, {"AVATAR", "AVATAR"}, {"MISC", "MISC"}, {"ABYSAL", "ABYSAL"}}) do
+newPage(t[2])
+local b = button(t[1], 11, tabBar, {
+Size = UDim2.new(0, 68, 1, 0), BackgroundColor3 = Color3.new(1, 1, 1),
+BackgroundTransparency = 1, AutoButtonColor = false, LayoutOrder = idx, TextColor3 = C.muted,
+})
+corner(b, 10)
+gradient(b, C.purple, C.pink, 0)
+b.MouseButton1Click:Connect(function() selectTab(t[2]) end)
+tabBtns[t[2]] = b
+end
+local subWinClosers = {}
+local function makeSubWindow(title, subtitle, WW, WH, topInset)
+topInset = topInset or 0
+local sw = {open = false}
+local win = make("Frame", {
+Name = "SubWin_" .. title, Size = UDim2.new(0, WW, 0, WH),
+Position = UDim2.new(0.5, 150, 0.5, -WH / 2), BackgroundColor3 = C.bg,
+BackgroundTransparency = 0.25, ClipsDescendants = true, Visible = false, Active = true,
+}, gui)
+corner(win, 16)
+local ws = stroke(win, C.purple, 2)
+gradient(ws, C.purple, C.pink, 45)
+local hdr = make("Frame", {Size = UDim2.new(1, 0, 0, 44), BackgroundTransparency = 1}, win)
+label(title, 14, C.text, hdr, {Size = UDim2.new(1, -56, 0, 20), Position = UDim2.new(0, 14, 0, 6)})
+sw.sub = label(subtitle or "", 10, C.muted, hdr, {
+Font = Enum.Font.Gotham, Size = UDim2.new(1, -56, 0, 12), Position = UDim2.new(0, 14, 0, 26),
+TextTruncate = Enum.TextTruncate.AtEnd,
+})
+local closeBtn = button("X", 12, hdr, {
+Size = UDim2.new(0, 26, 0, 26), Position = UDim2.new(1, -36, 0, 9), BackgroundColor3 = C.bg,
+})
+corner(closeBtn, 13)
+stroke(closeBtn, C.purple, 1.5, 0.3)
+local ln = make("Frame", {
+Size = UDim2.new(1, -24, 0, 2), Position = UDim2.new(0, 12, 0, 43),
+BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0,
+}, win)
+gradient(ln, C.purple, C.pink, 0)
+local dragging, dragStart, startPos
+track(hdr.InputBegan:Connect(function(i)
+if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+dragging, dragStart, startPos = true, i.Position, win.Position
+local c; c = i.Changed:Connect(function()
+if i.UserInputState == Enum.UserInputState.End then dragging = false c:Disconnect() end
+end)
+end
+end))
+track(UserInputService.InputChanged:Connect(function(i)
+if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement
+or i.UserInputType == Enum.UserInputType.Touch) then
+local d = i.Position - dragStart
+win.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X,
+startPos.Y.Scale, startPos.Y.Offset + d.Y)
+end
+end))
+local content = make("ScrollingFrame", {
+Size = UDim2.new(1, -16, 1, -(52 + topInset)), Position = UDim2.new(0, 8, 0, 50 + topInset),
+BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 4,
+ScrollBarImageColor3 = C.purple, CanvasSize = UDim2.new(0, 0, 0, 0),
+AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y,
+ElasticBehavior = Enum.ElasticBehavior.Always,
+}, win)
+table.insert(themeScrolls, content)
+make("UIListLayout", {Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder}, content)
+make("UIPadding", {PaddingBottom = UDim.new(0, 8), PaddingRight = UDim.new(0, 2)}, content)
+sw.win, sw.content = win, content
+local function place()
+local mp, ms = main.AbsolutePosition, main.AbsoluteSize
+local gp, gs = gui.AbsolutePosition, gui.AbsoluteSize
+local x = (mp.X - gp.X) + ms.X + 8
+if x + WW > gs.X then x = (mp.X - gp.X) - WW - 8 end
+x = math.clamp(x, 0, math.max(0, gs.X - WW))
+local y = math.clamp(mp.Y - gp.Y, 0, math.max(0, gs.Y - WH))
+win.Position = UDim2.fromOffset(x, y)
+end
+function sw.setOpen(v)
+if v then
+for _, f in ipairs(subWinClosers) do
+if f ~= sw.close then f() end
+end
+place()
+end
+sw.open = v
+win.Visible = v and main.Visible
+if sw.onChange then sw.onChange(v) end
+end
+sw.close = function() if sw.open then sw.setOpen(false) end end
+table.insert(subWinClosers, sw.close)
+closeBtn.MouseButton1Click:Connect(function() sw.setOpen(false) end)
+track(main:GetPropertyChangedSignal("Visible"):Connect(function()
+win.Visible = sw.open and main.Visible
+end))
+return sw
+end
+local function makeOpenCard(page, title, desc, order, sw)
+local card = make("TextButton", {
+Text = "", Size = UDim2.new(1, -6, 0, 46), BackgroundColor3 = C.panel,
+BackgroundTransparency = 0.2, AutoButtonColor = true, LayoutOrder = order,
+}, page)
+corner(card, 10)
+label(title, 13, C.text, card, {Size = UDim2.new(1, -50, 0, 20), Position = UDim2.new(0, 12, 0, 5)})
+label(desc, 10, C.muted, card, {
+Font = Enum.Font.Gotham, Size = UDim2.new(1, -50, 0, 16), Position = UDim2.new(0, 12, 0, 25),
+TextTruncate = Enum.TextTruncate.AtEnd,
+})
+local arrow = label(">", 16, C.muted, card, {
+Size = UDim2.new(0, 24, 1, 0), Position = UDim2.new(1, -34, 0, 0),
+TextXAlignment = Enum.TextXAlignment.Center,
+})
+local prev = sw.onChange
+sw.onChange = function(v)
+arrow.Text = v and "<" or ">"
+if prev then prev(v) end
+end
+card.MouseButton1Click:Connect(function()
+playClick(1)
+sw.setOpen(not sw.open)
+end)
+return card
+end
+secure("MISC", function()
+local page = pages["MISC"]
+local Lighting = game:GetService("Lighting")
+local VirtualUser = game:GetService("VirtualUser")
+local afkOn = false
+makeToggle(page, "Anti-AFK", "Cegah dikick karena diam", 1, false, function(v) afkOn = v end)
+track(player.Idled:Connect(function()
+if not afkOn then return end
+pcall(function()
+VirtualUser:CaptureController()
+VirtualUser:ClickButton2(Vector2.new())
+end)
+end))
+local lagOn = false
+local saved = setmetatable({}, {__mode = "k"})
+local Terrain = workspace:FindFirstChildOfClass("Terrain")
+local qualOrig
+local function setProps(inst, changes)
+local s = saved[inst]
+if not s then
+s = {}
+saved[inst] = s
+end
+for k, v in pairs(changes) do
+pcall(function()
+if s[k] == nil then s[k] = inst[k] end
+inst[k] = v
+end)
+end
+end
+local function boost(o)
+if o:IsA("Terrain") then return end
+if o:IsA("BasePart") then
+setProps(o, {Material = Enum.Material.SmoothPlastic, Reflectance = 0, CastShadow = false})
+elseif o:IsA("Texture") or (o:IsA("Decal") and not (o.Parent and o.Parent.Name == "Head")) then
+setProps(o, {Transparency = 1})
+elseif o:IsA("ParticleEmitter") then
+setProps(o, {Enabled = false, Rate = 0, Lifetime = NumberRange.new(0)})
+elseif o:IsA("Trail") or o:IsA("Beam") or o:IsA("Smoke") or o:IsA("Fire")
+or o:IsA("Sparkles") or o:IsA("PostEffect") or o:IsA("Clouds") then
+setProps(o, {Enabled = false})
+elseif o:IsA("ForceField") then
+setProps(o, {Visible = false})
+elseif o:IsA("Atmosphere") then
+setProps(o, {Density = 0, Offset = 0, Glare = 0, Haze = 0})
+end
+end
+local function applyWorld()
+setProps(Lighting, {
+GlobalShadows = false, FogEnd = 9e9,
+EnvironmentDiffuseScale = 0, EnvironmentSpecularScale = 0,
+})
+if Terrain then
+setProps(Terrain, {WaterWaveSize = 0, WaterWaveSpeed = 0, WaterReflectance = 0, Decoration = false})
+end
+pcall(function()
+qualOrig = qualOrig or settings().Rendering.QualityLevel
+settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+end)
+end
+local lagJob = 0
+local function setLag(v)
+lagOn = v
+lagJob = lagJob + 1
+local my = lagJob
+if v then
+applyWorld()
+task.spawn(function()
+local n = 0
+for _, o in ipairs(game:GetDescendants()) do
+if not lagOn or lagJob ~= my then break end
+pcall(boost, o)
+n = n + 1
+if n % 400 == 0 then task.wait() end
+end
+end)
+else
+local list = {}
+for inst, props in pairs(saved) do list[inst] = props end
+for inst, props in pairs(list) do
+for k, val in pairs(props) do
+pcall(function() inst[k] = val end)
+end
+saved[inst] = nil
+end
+if qualOrig then
+pcall(function() settings().Rendering.QualityLevel = qualOrig end)
+qualOrig = nil
+end
+end
+end
+makeToggle(page, "Anti Lag", "Kentang, tanpa efek & cuaca", 2, false, setLag)
+track(game.DescendantAdded:Connect(function(o)
+if lagOn then pcall(boost, o) end
+end))
+local sfx = {"", "K", "M", "B", "T", "Qa", "Qi", "Sx", "Sp", "Oc", "No", "Dc"}
+local function abbr(n)
+local a, i = math.abs(n), 1
+while a >= 1000 and i < #sfx do a = a / 1000 i = i + 1 end
+local s = (a == math.floor(a)) and tostring(math.floor(a)) or string.format("%.2f", a)
+return (n < 0 and "-" or "") .. s .. sfx[i]
+end
+local function fmtVal(v)
+if type(v) == "number" then return abbr(v) end
+return tostring(v)
+end
+local incomeKeys = {"income", "earn", "profit", "penghasilan", "persec", "per_sec", "rate", "cps", "money", "cash", "coin", "gain"}
+local priceKeys = {"price", "cost", "harga", "value", "worth", "sell"}
+local countKeys = {"amount", "count", "quantity", "qty", "stack", "jumlah"}
+local function matchAny(key, list)
+local k = tostring(key):lower()
+for _, w in ipairs(list) do
+if k:find(w, 1, true) then return true end
+end
+return false
+end
+local function gather(tool)
+local props = {}
+for k, v in pairs(tool:GetAttributes()) do table.insert(props, {k, v}) end
+local n = 0
+for _, d in ipairs(tool:GetDescendants()) do
+if d:IsA("ValueBase") then
+table.insert(props, {d.Name, d.Value})
+n = n + 1
+if n >= 30 then break end
+end
+end
+table.sort(props, function(a, b) return tostring(a[1]) < tostring(b[1]) end)
+return props
+end
+local function heldTool() return findHeld() end
+local function report()
+local tool = heldTool()
+if not tool then return "Tidak ada item yang dipegang.", nil end
+local props = gather(tool)
+local inc, pri, cnt, other = {}, {}, {}, {}
+for _, p in ipairs(props) do
+local txt = tostring(p[1]) .. " = " .. fmtVal(p[2])
+if matchAny(p[1], incomeKeys) then table.insert(inc, txt)
+elseif matchAny(p[1], priceKeys) then table.insert(pri, txt)
+elseif matchAny(p[1], countKeys) then table.insert(cnt, txt)
+else table.insert(other, txt) end
+end
+local nameCount = tool.Name:match("[xX]%s*(%d+)") or tool.Name:match("(%d+)%s*[xX]")
+if nameCount then table.insert(cnt, "dari nama = " .. nameCount) end
+local texts = {}
+for _, d in ipairs(tool:GetDescendants()) do
+if (d:IsA("TextLabel") or d:IsA("TextButton")) and d.Text ~= "" then
+table.insert(texts, d.Text)
+if #texts >= 4 then break end
+end
+end
+local function join(t, empty) return #t > 0 and table.concat(t, ", ") or empty end
+local lines = {
+"Nama: " .. tool.Name,
+"Penghasilan: " .. join(inc, "tidak ditemukan"),
+"Harga: " .. join(pri, "tidak ditemukan"),
+"Jumlah: " .. join(cnt, "tidak ditemukan"),
+}
+if #other > 0 then
+local firstOther = {}
+for i = 1, math.min(#other, 5) do table.insert(firstOther, other[i]) end
+table.insert(lines, "Lainnya: " .. table.concat(firstOther, ", "))
+end
+if #texts > 0 then table.insert(lines, "Teks: " .. table.concat(texts, " | ")) end
+return table.concat(lines, "\n"), tool
+end
+local infoOn = false
+local infoJob = 0
+local infoLbl = label("Nyalakan untuk melihat info item yang dipegang.", 10, C.text, page, {
+Font = Enum.Font.Gotham, Size = UDim2.new(1, -6, 0, 100), TextWrapped = true,
+TextYAlignment = Enum.TextYAlignment.Top, LayoutOrder = 4,
+})
+local function setInfo(v)
+infoOn = v
+infoJob = infoJob + 1
+local my = infoJob
+if not v then infoLbl.Text = "Nyalakan untuk melihat info item yang dipegang." return end
+task.spawn(function()
+while infoOn and infoJob == my do
+local ok, txt = pcall(report)
+infoLbl.Text = ok and txt or ("Error: " .. tostring(txt))
+task.wait(0.5)
+end
+end)
+end
+makeToggle(page, "Cek Item Dipegang", "Harga & penghasilan item di tangan", 3, false, setInfo)
+local dumpBtn = button("DUMP DETAIL KE KONSOL", 12, page, {
+Size = UDim2.new(1, -6, 0, 34), BackgroundColor3 = C.blue, LayoutOrder = 5,
+})
+corner(dumpBtn, 10)
+dumpBtn.MouseButton1Click:Connect(function()
+local tool = heldTool()
+if not tool then infoLbl.Text = "Tidak ada item yang dipegang." return end
+print("[JxL] === item dipegang: " .. tool:GetFullName() .. " (" .. tool.ClassName .. ")")
+for k, v in pairs(tool:GetAttributes()) do print("[JxL] attribute " .. tostring(k) .. " = " .. tostring(v)) end
+for _, d in ipairs(tool:GetDescendants()) do
+local extra = ""
+if d:IsA("ValueBase") then extra = " = " .. tostring(d.Value) end
+if d:IsA("TextLabel") or d:IsA("TextButton") then extra = " text=" .. d.Text end
+print("[JxL]   " .. d:GetFullName() .. " [" .. d.ClassName .. "]" .. extra)
+end
+infoLbl.Text = "Detail item '" .. tool.Name .. "' dicetak ke konsol."
+end)
+miscCleanup = function()
+afkOn = false
+infoOn = false
+infoJob = infoJob + 1
+if lagOn then setLag(false) end
+end
+end)
+secure("TP/SP", function()
+local page = pages["TPSP"]
+local mode = "TPSP" -- TP | SP | TPSP
+local spd = 10
+local saved = {}
+local rows = {}
+local slotRows = {}
+local slotColors = {
+Color3.fromRGB(220, 50, 50), Color3.fromRGB(37, 99, 235), Color3.fromRGB(34, 170, 90),
+Color3.fromRGB(230, 170, 20), Color3.fromRGB(150, 90, 255),
+}
+local function flash(btn, txt, orig)
+btn.Text = txt
+task.delay(0.8, function() if btn.Parent then btn.Text = orig end end)
+end
+track(player.CharacterAdded:Connect(function()
+if activeTween then activeTween:Cancel() activeTween = nil end
+end))
+local sub = make("Frame", {Size = UDim2.new(1, -6, 0, 34), BackgroundColor3 = C.panel, BackgroundTransparency = 0.3, LayoutOrder = 1}, page)
+corner(sub, 10)
+make("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, SortOrder = Enum.SortOrder.LayoutOrder}, sub)
+local subBtns = {}
+local function relayout()
+local cols = {"SET"}
+if mode ~= "TP" then table.insert(cols, "SP") end
+if mode ~= "SP" then table.insert(cols, "TP") end
+local w = 0.85 / #cols
+for _, r in ipairs(rows) do
+for _, obj in pairs(r) do obj.Visible = false end
+for i, name in ipairs(cols) do
+local obj = r[name]
+obj.Visible = true
+obj.Position = UDim2.new(0.15 + w * (i - 1), 2, 0, 0)
+obj.Size = UDim2.new(w, -4, 1, 0)
+end
+end
+for k, b in pairs(subBtns) do
+local a = (k == mode)
+b.BackgroundTransparency = a and 0 or 1
+b.TextColor3 = a and Color3.new(1, 1, 1) or C.muted
+end
+end
+for i, s in ipairs({{"SP", "SP"}, {"TP", "TP"}, {"TP / SP", "TPSP"}}) do
+local b = button(s[1], 14, sub, {
+Size = UDim2.new(1 / 3, 0, 1, 0), BackgroundColor3 = Color3.new(1, 1, 1),
+BackgroundTransparency = 1, AutoButtonColor = false, LayoutOrder = i, TextColor3 = C.muted,
+})
+corner(b, 10)
+gradient(b, C.purple, C.pink, 0)
+b.MouseButton1Click:Connect(function() mode = s[2] relayout() end)
+subBtns[s[2]] = b
+end
+local sRow = make("Frame", {Size = UDim2.new(1, -6, 0, 36), BackgroundTransparency = 1, LayoutOrder = 2}, page)
+label("KECEPATAN SPEED", 13, C.muted, sRow, {Size = UDim2.new(0.5, 0, 1, 0)})
+local sBox = inputBox("10", sRow, {
+Size = UDim2.new(0.5, 0, 1, 0), Position = UDim2.new(0.5, 0, 0, 0), TextXAlignment = Enum.TextXAlignment.Center,
+})
+sBox.FocusLost:Connect(function()
+local n = tonumber(sBox.Text)
+if n and n > 0 then spd = math.clamp(n, 1, 1000) end
+sBox.Text = tostring(spd)
+end)
+Settings.extra.spspeed = {
+get = function() return spd end,
+set = function(v) spd = math.clamp(tonumber(v) or 10, 1, 1000) sBox.Text = tostring(spd) end,
+def = 10,
+}
+local head = make("Frame", {Size = UDim2.new(1, -6, 0, 16), BackgroundTransparency = 1, LayoutOrder = 3}, page)
+local hr = {}
+for name, txt in pairs({SET = "SIMPAN", TP = "TELEPORT", SP = "SPEED"}) do
+hr[name] = label(txt, 12, C.muted, head, {TextXAlignment = Enum.TextXAlignment.Center})
+end
+table.insert(rows, hr)
+for i = 1, 5 do
+local row = make("Frame", {Size = UDim2.new(1, -6, 0, 34), BackgroundTransparency = 1, LayoutOrder = 3 + i}, page)
+local numLbl = label(tostring(i), 14, C.text, row, {
+Size = UDim2.new(0.15, -4, 1, 0), TextXAlignment = Enum.TextXAlignment.Center,
+BackgroundColor3 = C.panel2, BackgroundTransparency = 0.4,
+})
+corner(numLbl, 8)
+local r = {}
+r.SET = button("SET", 13, row, {BackgroundColor3 = C.panel2})
+r.TP = button("TP", 13, row, {BackgroundColor3 = C.panel2})
+r.SP = button("SP", 13, row, {BackgroundColor3 = C.panel2})
+for _, b in pairs(r) do corner(b, 8) end
+r.SET.MouseButton1Click:Connect(function()
+local hrp = getHRP()
+if not hrp then flash(r.SET, "X", "SET") return end
+saved[i] = hrp.CFrame
+local col = slotColors[(i - 1) % #slotColors + 1]
+numLbl.BackgroundColor3 = col
+numLbl.BackgroundTransparency = 0
+numLbl.TextColor3 = Color3.new(1, 1, 1)
+r.SET.BackgroundColor3 = col
+r.TP.BackgroundColor3 = col
+r.SP.BackgroundColor3 = col
+flash(r.SET, "OK", "SET")
+end)
+r.TP.MouseButton1Click:Connect(function()
+local hrp = getHRP()
+if not hrp or not saved[i] then flash(r.TP, "X", "TP") return end
+if activeTween then activeTween:Cancel() activeTween = nil end
+hrp.CFrame = saved[i]
+end)
+r.SP.MouseButton1Click:Connect(function()
+local hrp = getHRP()
+local target = saved[i]
+if not hrp or not target then flash(r.SP, "X", "SP") return end
+if activeTween then activeTween:Cancel() end
+local dist = (hrp.Position - target.Position).Magnitude
+local dur = math.max(dist / spd, 0.05)
+activeTween = TweenService:Create(hrp, TweenInfo.new(dur, Enum.EasingStyle.Linear), {CFrame = target})
+activeTween:Play()
+end)
+table.insert(rows, r)
+table.insert(slotRows, {r = r, num = numLbl})
+end
+local resetAll = button("RESET SEMUA POS", 13, page, {
+Size = UDim2.new(1, -6, 0, 34), BackgroundColor3 = Color3.fromRGB(190, 50, 60), LayoutOrder = 20,
+})
+corner(resetAll, 10)
+resetAll.MouseButton1Click:Connect(function()
+saved = {}
+if activeTween then activeTween:Cancel() activeTween = nil end
+for _, e in ipairs(slotRows) do
+for _, n in ipairs({"SET", "TP", "SP"}) do e.r[n].BackgroundColor3 = C.panel2 end
+e.num.BackgroundColor3 = C.panel2
+e.num.BackgroundTransparency = 0.4
+e.num.TextColor3 = C.text
+end
+flash(resetAll, "SEMUA DIHAPUS", "RESET SEMUA POS")
+end)
+relayout()
+end)
+secure("FITUR", function()
+local page = pages["FITUR"]
+local ijOn = false
+makeToggle(page, "Infinity Jump", "Lompat terus di udara", 1, false, function(v) ijOn = v end)
+track(UserInputService.JumpRequest:Connect(function()
+if not ijOn then return end
+local hum = getHum()
+if hum then hum:ChangeState(Enum.HumanoidStateType.Jumping) end
+end))
+local noclipOn = false
+local changed = {}
+track(RunService.Stepped:Connect(function()
+if not noclipOn then return end
+local ch = getChar()
+if not ch then return end
+for _, p in ipairs(ch:GetDescendants()) do
+if p:IsA("BasePart") and p.CanCollide then
+changed[p] = true
+p.CanCollide = false
+end
+end
+end))
+local function setNoclip(v)
+noclipOn = v
+if not v then
+for p in pairs(changed) do
+if p.Parent then p.CanCollide = true end
+end
+changed = {}
+end
+end
+makeToggle(page, "Noclip", "Tembus tembok & objek", 2, false, setNoclip)
+local flySpeed = 50
+local bv, bg, flyConn
+local function stopFly()
+if flyConn then flyConn:Disconnect() flyConn = nil end
+if bv then bv:Destroy() bv = nil end
+if bg then bg:Destroy() bg = nil end
+local hum = getHum()
+if hum then hum.PlatformStand = false end
+end
+local function startFly()
+local hrp, hum = getHRP(), getHum()
+if not hrp or not hum then return false end
+stopFly()
+bv = make("BodyVelocity", {MaxForce = Vector3.new(9e9, 9e9, 9e9), Velocity = Vector3.new()}, hrp)
+bg = make("BodyGyro", {MaxTorque = Vector3.new(9e9, 9e9, 9e9), P = 9e4, CFrame = hrp.CFrame}, hrp)
+hum.PlatformStand = true
+flyConn = RunService.RenderStepped:Connect(function()
+local h2, hum2 = getHRP(), getHum()
+if not h2 or not hum2 or not bv or not bg then return end
+local cam = workspace.CurrentCamera
+local look, right = cam.CFrame.LookVector, cam.CFrame.RightVector
+local flatLook = Vector3.new(look.X, 0, look.Z)
+local flatRight = Vector3.new(right.X, 0, right.Z)
+local md = hum2.MoveDirection
+local vel = Vector3.new()
+if md.Magnitude > 0 then
+local f = flatLook.Magnitude > 0 and md:Dot(flatLook.Unit) or 0
+local r = flatRight.Magnitude > 0 and md:Dot(flatRight.Unit) or 0
+vel = look * f + right * r
+end
+if UserInputService:IsKeyDown(Enum.KeyCode.Space) or UserInputService:IsKeyDown(Enum.KeyCode.E) then
+vel = vel + Vector3.new(0, 1, 0)
+end
+if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) or UserInputService:IsKeyDown(Enum.KeyCode.Q) then
+vel = vel - Vector3.new(0, 1, 0)
+end
+bv.Velocity = vel * flySpeed
+bg.CFrame = cam.CFrame
+end)
+return true
+end
+local _, flyVisual = makeToggle(page, "Fly", "Terbang ikut arah kamera", 3, false, function(v)
+if v then return startFly() end
+stopFly()
+end)
+makeNumberRow(page, "KECEPATAN FLY", flySpeed, 4, function(n)
+flySpeed = math.clamp(n, 1, 500)
+end)
+track(player.CharacterAdded:Connect(function()
+stopFly()
+flyVisual(false)
+end))
+flyCleanup = stopFly
+featCleanup = function()
+ijOn = false
+setNoclip(false)
+end
+end)
+secure("ESP", function()
+local page = pages["FITUR"]
+local espOn = false
+local objs = {}
+local function clearOne(p)
+local o = objs[p]
+if o then
+for _, inst in pairs(o) do pcall(function() inst:Destroy() end) end
+objs[p] = nil
+end
+end
+local function addOne(p)
+if p == player then return end
+local ch = p.Character
+if not ch then return end
+clearOne(p)
+local o = {}
+o.hl = make("Highlight", {
+Adornee = ch, FillColor = C.pink, FillTransparency = 0.6,
+OutlineColor = Color3.new(1, 1, 1), DepthMode = Enum.HighlightDepthMode.AlwaysOnTop,
+}, gui)
+local head = ch:FindFirstChild("Head")
+if head then
+o.bb = make("BillboardGui", {
+Adornee = head, Size = UDim2.new(0, 120, 0, 20), StudsOffset = Vector3.new(0, 2.5, 0),
+AlwaysOnTop = true,
+}, gui)
+label(p.DisplayName, 12, C.text, o.bb, {
+Size = UDim2.new(1, 0, 1, 0), TextXAlignment = Enum.TextXAlignment.Center,
+TextStrokeTransparency = 0.4,
+})
+end
+objs[p] = o
+end
+local function hook(p)
+track(p.CharacterAdded:Connect(function()
+if espOn then
+task.wait(0.5)
+addOne(p)
+end
+end))
+end
+for _, p in ipairs(Players:GetPlayers()) do if p ~= player then hook(p) end end
+track(Players.PlayerAdded:Connect(hook))
+track(Players.PlayerRemoving:Connect(clearOne))
+local function setESP(v)
+espOn = v
+if v then
+for _, p in ipairs(Players:GetPlayers()) do addOne(p) end
+else
+for p in pairs(objs) do clearOne(p) end
+end
+end
+makeToggle(page, "ESP", "Sorot & nama semua pemain", 5, false, setESP)
+espCleanup = function() setESP(false) end
+end)
+secure("InstantPP", function()
+local page = pages["EGG"]
+local on = false
+local job = 0
+local orig = setmetatable({}, {__mode = "k"})
+local PPS = game:GetService("ProximityPromptService")
+local function fix(p)
+if p:IsA("ProximityPrompt") then
+if orig[p] == nil then orig[p] = p.HoldDuration end
+p.HoldDuration = 0
+end
+end
+local function setPP(v)
+on = v
+job = job + 1
+local my = job
+if v then
+task.spawn(function()
+local n = 0
+for _, o in ipairs(workspace:GetDescendants()) do
+if not on or job ~= my then return end
+pcall(fix, o)
+n = n + 1
+if n % 500 == 0 then task.wait() end
+end
+end)
+else
+for p, h in pairs(orig) do
+pcall(function() p.HoldDuration = h end)
+orig[p] = nil
+end
+end
+end
+track(workspace.DescendantAdded:Connect(function(o)
+if on then pcall(fix, o) end
+end))
+track(PPS.PromptButtonHoldBegan:Connect(function(p)
+if on then pcall(function() fireproximityprompt(p) end) end
+end))
+makeToggle(page, "Instant PP", "Prompt interaksi tanpa ditahan", 6, false, setPP)
+instantCleanup = function() setPP(false) end
+end)
+secure("TPLIST", function()
+local sw = makeSubWindow("TELEPORT PLAYER", "", 230, 290, 36)
+local list = sw.content
+local search = inputBox("", sw.win, {
+Size = UDim2.new(1, -24, 0, 28), Position = UDim2.new(0, 12, 0, 50), TextSize = 12,
+PlaceholderText = "Cari nama...", PlaceholderColor3 = C.muted,
+TextXAlignment = Enum.TextXAlignment.Center,
+})
+local function rebuild()
+for _, c in ipairs(list:GetChildren()) do
+if c:IsA("TextButton") then c:Destroy() end
+end
+local q = search.Text:lower()
+local arr = {}
+for _, p in ipairs(Players:GetPlayers()) do
+if p ~= player and (q == "" or p.DisplayName:lower():find(q, 1, true) or p.Name:lower():find(q, 1, true)) then
+table.insert(arr, p)
+end
+end
+table.sort(arr, function(a, b) return a.DisplayName:lower() < b.DisplayName:lower() end)
+sw.sub.Text = (#Players:GetPlayers() - 1) .. " pemain lain di server"
+if #arr == 0 then sw.sub.Text = "Tidak ada pemain yang cocok" end
+for i, p in ipairs(arr) do
+local b = button(p.DisplayName .. "  (@" .. p.Name .. ")", 11, list, {
+Size = UDim2.new(1, -2, 0, 30), BackgroundColor3 = C.panel, LayoutOrder = i,
+TextTruncate = Enum.TextTruncate.AtEnd,
+})
+corner(b, 8)
+b.MouseButton1Click:Connect(function()
+local tr = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
+local hrp = getHRP()
+if not tr or not hrp then
+sw.sub.Text = "Gagal: karakter " .. p.DisplayName .. " belum siap"
+return
+end
+if activeTween then activeTween:Cancel() activeTween = nil end
+hrp.CFrame = tr.CFrame * CFrame.new(0, 0, 3)
+sw.sub.Text = "Teleport ke " .. p.DisplayName
+end)
+end
+end
+search:GetPropertyChangedSignal("Text"):Connect(rebuild)
+track(Players.PlayerAdded:Connect(function() task.delay(0.3, function() if sw.open then rebuild() end end) end))
+track(Players.PlayerRemoving:Connect(function() task.delay(0.3, function() if sw.open then rebuild() end end) end))
+makeOpenCard(pages["FITUR"], "Teleport Player", "Buka daftar nickname pemain", 7, sw)
+local prev = sw.onChange
+sw.onChange = function(v)
+if prev then prev(v) end
+if v then
+search.Text = ""
+rebuild()
+end
+end
+end)
+secure("FOLLOW", function()
+local sw = makeSubWindow("IKUTI PLAYER", "", 230, 310, 36)
+local list = sw.content
+local search = inputBox("", sw.win, {
+Size = UDim2.new(1, -24, 0, 28), Position = UDim2.new(0, 12, 0, 50), TextSize = 12,
+PlaceholderText = "Cari nama...", PlaceholderColor3 = C.muted,
+TextXAlignment = Enum.TextXAlignment.Center,
+})
+local target = nil
+local dists = {2, 3, 4, 6}
+local dIdx = 2
+local conn
+local rebuild
+local holdMsg
+local autoStop = true
+local function stop(msg)
+target = nil
+holdMsg = msg
+if conn then conn:Disconnect() conn = nil end
+if msg then sw.sub.Text = msg end
+end
+local function start(p)
+stop()
+holdMsg = nil
+target = p
+if activeTween then activeTween:Cancel() activeTween = nil end
+local t0, hitFrames, lastNc, lastInfo = os.clock(), 0, 0, 0
+local lastPos, lastT, lastSeen, now0
+local function step(skipDetect)
+local tp = target
+if not tp or not tp.Parent then stop("Pemain keluar, berhenti") if rebuild then rebuild() end return end
+local ch = tp.Character
+local tr = ch and (ch:FindFirstChild("HumanoidRootPart") or ch.PrimaryPart or ch:FindFirstChildWhichIsA("BasePart"))
+local hrp = getHRP()
+if tr then lastSeen = tr.CFrame
+elseif hrp and ch and not tr then
+local okp, pv = pcall(function() return ch:GetPivot() end)
+local goal = (okp and pv and pv.Position.Magnitude > 1) and pv or lastSeen
+if goal then
+pcall(function() player:RequestStreamAroundAsync(goal.Position) end)
+if now0 == nil or os.clock() - now0 > 0.3 then
+now0 = os.clock()
+hrp.CFrame = goal * CFrame.new(0, 0, dists[dIdx])
+hrp.AssemblyLinearVelocity = Vector3.zero
+end
+end
+end
+if not tr or not hrp then
+if os.clock() - lastInfo > 0.5 then lastInfo = os.clock() sw.sub.Text = "Menunggu karakter " .. tp.DisplayName end
+lastPos = nil
+return
+end
+local now = os.clock()
+if autoStop and not skipDetect and lastPos and lastT and now - t0 > 1.5 then
+local dt = math.max(now - lastT, 1e-3)
+local sp = (tr.Position - lastPos).Magnitude / dt
+local st = tp.Character:FindFirstChildOfClass("Humanoid")
+st = st and st:GetState()
+local hit = sp > 110 or st == Enum.HumanoidStateType.FallingDown or st == Enum.HumanoidStateType.Ragdoll
+hitFrames = hit and (hitFrames + 1) or 0
+if hitFrames >= 5 then
+stop(tp.DisplayName .. " terlempar, berhenti")
+if rebuild then rebuild() end
+return
+end
+end
+if not skipDetect then lastPos, lastT = tr.Position, now end
+if now - lastNc > 0.5 then
+lastNc = now
+for _, part in ipairs(hrp.Parent:GetChildren()) do
+if part:IsA("BasePart") then part.CanCollide = false end
+end
+end
+local pos = (tr.CFrame * CFrame.new(0, 0, dists[dIdx])).Position
+hrp.CFrame = CFrame.lookAt(pos, Vector3.new(tr.Position.X, pos.Y, tr.Position.Z))
+hrp.AssemblyLinearVelocity = Vector3.zero
+hrp.AssemblyAngularVelocity = Vector3.zero
+if now - lastInfo > 0.5 then
+lastInfo = now
+sw.sub.Text = "Mengikuti " .. tp.DisplayName .. " (" .. math.floor((hrp.Position - tr.Position).Magnitude) .. " stud)"
+end
+end
+local c1 = RunService.Heartbeat:Connect(function() step(false) end)
+local c2 = RunService.Stepped:Connect(function() if target then pcall(step, true) end end)
+conn = {Disconnect = function() c1:Disconnect() c2:Disconnect() end}
+sw.sub.Text = "Mengikuti " .. p.DisplayName
+end
+rebuild = function()
+for _, c in ipairs(list:GetChildren()) do
+if c:IsA("TextButton") then c:Destroy() end
+end
+local db = button("JARAK: " .. dists[dIdx] .. " stud (ketuk ganti)", 11, list, {
+Size = UDim2.new(1, -2, 0, 30), BackgroundColor3 = C.panel2, LayoutOrder = 0,
+})
+corner(db, 8)
+db.MouseButton1Click:Connect(function()
+dIdx = dIdx % #dists + 1
+db.Text = "JARAK: " .. dists[dIdx] .. " stud (ketuk ganti)"
+end)
+local ab = button("BERHENTI SAAT TERLEMPAR: " .. (autoStop and "NYALA" or "MATI"), 10, list, {
+Size = UDim2.new(1, -2, 0, 28), BackgroundColor3 = autoStop and Color3.fromRGB(34, 170, 90) or C.panel2, LayoutOrder = 1,
+})
+corner(ab, 8)
+ab.MouseButton1Click:Connect(function()
+autoStop = not autoStop
+ab.Text = "BERHENTI SAAT TERLEMPAR: " .. (autoStop and "NYALA" or "MATI")
+ab.BackgroundColor3 = autoStop and Color3.fromRGB(34, 170, 90) or C.panel2
+end)
+if target then
+local sb = button("BERHENTI MENGIKUTI", 12, list, {
+Size = UDim2.new(1, -2, 0, 30), BackgroundColor3 = Color3.fromRGB(190, 50, 60), LayoutOrder = 2,
+})
+corner(sb, 8)
+sb.MouseButton1Click:Connect(function() stop("Berhenti mengikuti") rebuild() end)
+end
+local q = search.Text:lower()
+local arr = {}
+for _, p in ipairs(Players:GetPlayers()) do
+if p ~= player and (q == "" or p.DisplayName:lower():find(q, 1, true) or p.Name:lower():find(q, 1, true)) then
+table.insert(arr, p)
+end
+end
+table.sort(arr, function(a, b) return a.DisplayName:lower() < b.DisplayName:lower() end)
+if not target then sw.sub.Text = holdMsg or (#arr .. " pemain lain di server") end
+for i, p in ipairs(arr) do
+local sel = (target == p)
+local b = button((sel and "> " or "") .. p.DisplayName .. "  (@" .. p.Name .. ")", 11, list, {
+Size = UDim2.new(1, -2, 0, 30), BackgroundColor3 = sel and Color3.fromRGB(34, 170, 90) or C.panel,
+LayoutOrder = 10 + i, TextTruncate = Enum.TextTruncate.AtEnd,
+})
+corner(b, 8)
+b.MouseButton1Click:Connect(function()
+if target == p then stop("Berhenti mengikuti") else start(p) end
+rebuild()
+end)
+end
+end
+search:GetPropertyChangedSignal("Text"):Connect(function() rebuild() end)
+track(Players.PlayerAdded:Connect(function() task.delay(0.3, function() if sw.open then rebuild() end end) end))
+track(Players.PlayerRemoving:Connect(function() task.delay(0.3, function() if sw.open then rebuild() end end) end))
+makeOpenCard(pages["FITUR"], "Ikuti Player", "Menempel di belakang pemain pilihan", 8, sw)
+local prev = sw.onChange
+sw.onChange = function(v)
+if prev then prev(v) end
+if v then search.Text = "" rebuild() end
+end
+followCleanup = function() stop() end
+end)
+secure("ITEMLOG", function()
+local sw = makeSubWindow("PEMBACA ITEM", "Log teks, bisa disalin", 250, 340)
+sw.content.Visible = false
+local win = sw.win
+local ON, OFF = Color3.fromRGB(34, 170, 90), nil
+local function row(y, h)
+return make("Frame", {Size = UDim2.new(1, -24, 0, h), Position = UDim2.new(0, 12, 0, y), BackgroundTransparency = 1}, win)
+end
+local function half(parent, idx, text, col)
+local b = button(text, 11, parent, {
+Size = UDim2.new(0.5, -2, 1, 0), Position = UDim2.new(0.5 * (idx - 1), idx == 2 and 2 or 0, 0, 0),
+BackgroundColor3 = col or C.panel2,
+})
+corner(b, 8)
+return b
+end
+local scroll = make("ScrollingFrame", {
+Size = UDim2.new(1, -24, 0, 178), Position = UDim2.new(0, 12, 0, 114),
+BackgroundColor3 = C.panel, BackgroundTransparency = 0.3, BorderSizePixel = 0,
+ScrollBarThickness = 4, ScrollBarImageColor3 = C.purple, CanvasSize = UDim2.new(0, 0, 0, 0),
+AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y,
+}, win)
+corner(scroll, 8)
+table.insert(themeScrolls, scroll)
+local logBox = make("TextBox", {
+Size = UDim2.new(1, -8, 0, 0), Position = UDim2.new(0, 4, 0, 2), AutomaticSize = Enum.AutomaticSize.Y,
+BackgroundTransparency = 1, Text = "", PlaceholderText = "Belum ada log. Tekan BACA ITEM.",
+PlaceholderColor3 = C.muted, TextColor3 = C.text, TextSize = 11, Font = Enum.Font.Code,
+TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top,
+TextWrapped = true, MultiLine = true, ClearTextOnFocus = false, TextEditable = true,
+}, scroll)
+regText(logBox)
+local lines = {}
+local function render(toEnd)
+logBox.Text = table.concat(lines, "\n")
+if toEnd then
+task.defer(function()
+pcall(function() scroll.CanvasPosition = Vector2.new(0, 1e6) end)
+end)
+end
+end
+local function addLog(txt)
+for l in tostring(txt):gmatch("[^\n]+") do
+table.insert(lines, l)
+end
+while #lines > 400 do table.remove(lines, 1) end
+render(true)
+end
+local function fmtArg(v, depth)
+depth = depth or 0
+local t = typeof(v)
+if t == "string" then return '"' .. v .. '"' end
+if t == "Instance" then return v:GetFullName() .. "<" .. v.ClassName .. ">" end
+if t == "Vector3" then return string.format("V3(%.1f,%.1f,%.1f)", v.X, v.Y, v.Z) end
+if t == "CFrame" then local p = v.Position return string.format("CF(%.1f,%.1f,%.1f)", p.X, p.Y, p.Z) end
+if t == "table" then
+if depth >= 2 then return "{...}" end
+local out, n = {}, 0
+for k, x in pairs(v) do
+n = n + 1
+if n > 8 then table.insert(out, "...") break end
+table.insert(out, "[" .. tostring(k) .. "]=" .. fmtArg(x, depth + 1))
+end
+return "{" .. table.concat(out, ", ") .. "}"
+end
+return tostring(v)
+end
+local function heldTool() return findHeld() end
+local function areaInfo()
+local t = {}
+local keys = {}
+for k in pairs(player:GetAttributes()) do keys[#keys + 1] = k end
+table.sort(keys)
+for _, k in ipairs(keys) do
+local kl = tostring(k):lower()
+if kl:find("world", 1, true) or kl:find("area", 1, true) or kl:find("zone", 1, true)
+or kl:find("island", 1, true) or kl:find("biome", 1, true) or kl:find("layer", 1, true)
+or kl:find("height", 1, true) then
+if not kl:find("unlocked", 1, true) then t[#t + 1] = k .. "=" .. fmtArg(player:GetAttribute(k)) end
+end
+end
+local hrp = getHRP()
+local pos = hrp and string.format("pos(%.0f, %.0f, %.0f)", hrp.Position.X, hrp.Position.Y, hrp.Position.Z) or "pos ?"
+return "Area: " .. (#t > 0 and table.concat(t, ", ") or "(atribut area tidak ditemukan)") .. " | " .. pos
+end
+local function describe(inst, title)
+local out = {"== " .. title .. ": " .. inst.Name}
+local ids, seen = {}, {}
+local rarity
+local a, n = inst, 0
+while a and a ~= workspace and a ~= player.Character and n < 6 do
+for k, v in pairs(a:GetAttributes()) do
+local kl = tostring(k):lower()
+if (kl == "id" or kl:sub(-2) == "id" or kl:find("id", 1, true) == 1) and not seen[k] then
+seen[k] = true
+ids[#ids + 1] = k .. "=" .. fmtArg(v)
+end
+if kl == "rarity" and not rarity then rarity = tostring(v) end
+end
+a, n = a.Parent, n + 1
+end
+out[#out + 1] = "ID: " .. (#ids > 0 and table.concat(ids, ", ") or "(tidak ada atribut id)")
+if rarity then out[#out + 1] = "Rarity: " .. rarity end
+out[#out + 1] = areaInfo()
+return table.concat(out, "\n")
+end
+local function readHeld()
+local item = findHeld()
+if item then
+addLog(describe(item, "ITEM"))
+else
+addLog("(tidak ada item yang dipegang)\n" .. areaInfo())
+end
+end
+local function readLook()
+local cam = workspace.CurrentCamera
+if not cam then return end
+local vs = cam.ViewportSize
+local ray = cam:ViewportPointToRay(vs.X / 2, vs.Y / 2)
+local ch = player.Character
+local rp = RaycastParams.new()
+rp.FilterType = Enum.RaycastFilterType.Exclude
+rp.FilterDescendantsInstances = {ch}
+local res = workspace:Raycast(ray.Origin, ray.Direction * 500, rp)
+if not res or not res.Instance then addLog("(tidak ada objek di tengah layar)") return end
+local inst = res.Instance
+local top = inst
+while top.Parent and top.Parent ~= workspace and not top.Parent:IsA("Folder") do top = top.Parent end
+addLog(describe(inst, "OBJEK"))
+if top ~= inst then addLog("induk: " .. top.Name) end
+end
+local r1 = row(50, 28)
+local bItem = half(r1, 1, "BACA ITEM")
+local bLook = half(r1, 2, "BACA OBJEK")
+bItem.MouseButton1Click:Connect(function() pcall(readHeld) end)
+bLook.MouseButton1Click:Connect(function() pcall(readLook) end)
+local r2 = row(82, 28)
+local bAuto = half(r2, 1, "AUTO BACA: MATI")
+local bRem = half(r2, 2, "REMOTE: MATI")
+local autoOn, autoJob, lastTool = false, 0, nil
+bAuto.MouseButton1Click:Connect(function()
+autoOn = not autoOn
+autoJob = autoJob + 1
+local my = autoJob
+bAuto.Text = autoOn and "AUTO BACA: NYALA" or "AUTO BACA: MATI"
+bAuto.BackgroundColor3 = autoOn and ON or C.panel2
+if not autoOn then return end
+lastTool = heldTool()
+task.spawn(function()
+while autoOn and autoJob == my do
+local t = heldTool()
+if t ~= lastTool then
+lastTool = t
+if t then pcall(function() addLog(describe(t, "ITEM")) end) end
+end
+task.wait(0.4)
+end
+end)
+end)
+local remOn, hooked, oldNc = false, false, nil
+local function installHook()
+if hooked then return true end
+if not (hookmetamethod and getnamecallmethod) then return false end
+local wrap = newcclosure or function(f) return f end
+local ok = pcall(function()
+oldNc = hookmetamethod(game, "__namecall", wrap(function(self, ...)
+if remOn then
+local m = getnamecallmethod()
+if (m == "FireServer" or m == "InvokeServer") and typeof(self) == "Instance"
+and (self:IsA("RemoteEvent") or self:IsA("RemoteFunction"))
+and not (checkcaller and checkcaller()) then
+local args = table.pack(...)
+task.defer(function()
+pcall(function()
+local parts = {}
+for i = 1, args.n do parts[i] = fmtArg(args[i]) end
+local tool = heldTool()
+addLog("[REMOTE] " .. self:GetFullName() .. ":" .. m .. "(" .. table.concat(parts, ", ") .. ")"
+.. (tool and ("  <" .. tool.Name .. ">") or ""))
+end)
+end)
+end
+end
+return oldNc(self, ...)
+end))
+end)
+hooked = ok
+return ok
+end
+bRem.MouseButton1Click:Connect(function()
+if not remOn then
+if not installHook() then
+sw.sub.Text = "Executor tidak mendukung hookmetamethod"
+addLog("(REMOTE tidak bisa dinyalakan: executor tanpa hookmetamethod)")
+return
+end
+remOn = true
+addLog("-- pencatat remote nyala: pakai item sekarang")
+else
+remOn = false
+end
+bRem.Text = remOn and "REMOTE: NYALA" or "REMOTE: MATI"
+bRem.BackgroundColor3 = remOn and ON or C.panel2
+end)
+local r3 = row(298, 30)
+local bCopy = half(r3, 1, "SALIN", C.blue)
+local bClear = half(r3, 2, "HAPUS", Color3.fromRGB(190, 50, 60))
+bCopy.MouseButton1Click:Connect(function()
+local txt = table.concat(lines, "\n")
+local fn = setclipboard or toclipboard or (syn and syn.write_clipboard)
+if txt == "" then bCopy.Text = "KOSONG" elseif fn and pcall(fn, txt) then bCopy.Text = "TERSALIN!"
+else
+bCopy.Text = "TAHAN TEKS"
+sw.sub.Text = "Tidak ada clipboard: tahan teks lalu salin manual"
+end
+task.delay(1.2, function() if bCopy.Parent then bCopy.Text = "SALIN" end end)
+end)
+bClear.MouseButton1Click:Connect(function()
+lines = {}
+render(false)
+sw.sub.Text = "Log dihapus"
+end)
+logBox.FocusLost:Connect(function()
+lines = {}
+for l in logBox.Text:gmatch("[^\n]+") do table.insert(lines, l) end
+end)
+makeOpenCard(pages["MISC"], "Pembaca Item", "Log item, objek & remote (bisa salin)", 6, sw)
+logCleanup = function()
+autoOn = false
+autoJob = autoJob + 1
+remOn = false
+end
+end)
+secure("AREALIST", function()
+local sw = makeSubWindow("TELEPORT AREA", "", 240, 340, 36)
+local list = sw.content
+list.Size = UDim2.new(1, -16, 1, -(52 + 36 + 44))
+local search = inputBox("", sw.win, {
+Size = UDim2.new(1, -24, 0, 28), Position = UDim2.new(0, 12, 0, 50), TextSize = 12,
+PlaceholderText = "Cari area...", PlaceholderColor3 = C.muted,
+TextXAlignment = Enum.TextXAlignment.Center,
+})
+local nameBox = inputBox("", sw.win, {
+Size = UDim2.new(1, -112, 0, 30), Position = UDim2.new(0, 12, 1, -38), TextSize = 12,
+PlaceholderText = "Nama posisi...", PlaceholderColor3 = C.muted,
+TextXAlignment = Enum.TextXAlignment.Center,
+})
+local saveBtn = button("SIMPAN", 11, sw.win, {
+Size = UDim2.new(0, 86, 0, 30), Position = UDim2.new(1, -98, 1, -38), BackgroundColor3 = C.blue,
+})
+corner(saveBtn, 8)
+local keys = {"savana", "savanna", "volcano", "vulkan", "dunia", "world", "area", "zone", "biome", "island", "pulau"}
+local skip = {"debris", "egg", "spawn", "decor", "tree", "pohon", "prop", "effect", "sound"}
+local saved = {} -- {name, Vector3}
+local presetAreas = {
+{"Savana", Vector3.new(-4.10, 6275.48, -1408.76)},
+{"Volcano", Vector3.new(-18.72, 9638.99, -1500.00)},
+{"Zona Aman", Vector3.new(3.07, 1.00, -36.10)},
+{"Teman", Vector3.new(-0.13, 4.87, -139.63)},
+}
+local function groundAt(pos)
+local rp = RaycastParams.new()
+rp.FilterType = Enum.RaycastFilterType.Exclude
+rp.FilterDescendantsInstances = {player.Character}
+local r = workspace:Raycast(pos + Vector3.new(0, 400, 0), Vector3.new(0, -900, 0), rp)
+return r and (r.Position + Vector3.new(0, 4, 0)) or (pos + Vector3.new(0, 5, 0))
+end
+local function centerOf(o)
+if o:IsA("BasePart") then return o.Position end
+if o:IsA("Model") then
+local ok, cf = pcall(function() return o:GetBoundingBox() end)
+if ok and cf then return cf.Position end
+return o:GetPivot().Position
+end
+local sum, n = Vector3.zero, 0
+for _, d in ipairs(o:GetDescendants()) do
+if d:IsA("BasePart") then sum = sum + d.Position n = n + 1 if n >= 200 then break end end
+end
+return n > 0 and (sum / n) or nil
+end
+local function matches(name)
+local n = name:lower()
+for _, w in ipairs(skip) do if n:find(w, 1, true) then return false end end
+for _, w in ipairs(keys) do if n:find(w, 1, true) then return true end end
+return false
+end
+local function scan()
+local out, taken = {}, {}
+for _, d in ipairs(workspace:GetDescendants()) do
+if (d:IsA("Model") or d:IsA("Folder") or d:IsA("BasePart")) and matches(d.Name) then
+local dup = false
+local a = d.Parent
+while a and a ~= workspace do
+if taken[a] then dup = true break end
+a = a.Parent
+end
+if not dup then
+local c = centerOf(d)
+if c then
+taken[d] = true
+table.insert(out, {name = d.Name, pos = c, found = true})
+end
+end
+end
+end
+return out
+end
+local function rebuild()
+for _, c in ipairs(list:GetChildren()) do
+if c:IsA("TextButton") then c:Destroy() end
+end
+local q = search.Text:lower()
+local hrp = getHRP()
+local all = {}
+for _, pa in ipairs(presetAreas) do table.insert(all, {name = pa[1], pos = pa[2] + Vector3.new(0, 3, 0), preset = true}) end
+for i, sv in ipairs(saved) do table.insert(all, {name = sv[1], pos = sv[2], mine = true, idx = i}) end
+for _, e in ipairs(all) do
+e.dist = hrp and (hrp.Position - e.pos).Magnitude or 0
+local n = e.name:lower()
+e.rank = e.preset and 0 or 1
+end
+table.sort(all, function(a, b) return a.rank < b.rank end)
+local shown = 0
+for _, e in ipairs(all) do
+if q == "" or e.name:lower():find(q, 1, true) then
+shown = shown + 1
+if shown > 60 then break end
+local b = button((e.preset and "# " or (e.mine and "* " or "")) .. e.name, 11, list, {
+Size = UDim2.new(1, -2, 0, 30), LayoutOrder = shown, TextTruncate = Enum.TextTruncate.AtEnd,
+BackgroundColor3 = e.preset and Color3.fromRGB(37, 99, 235) or (e.mine and Color3.fromRGB(34, 110, 80) or C.panel),
+})
+corner(b, 8)
+b.MouseButton1Click:Connect(function()
+local h = getHRP()
+if not h then sw.sub.Text = "Karakter belum siap" return end
+if activeTween then activeTween:Cancel() activeTween = nil end
+h.CFrame = CFrame.new((e.mine or e.preset) and e.pos or groundAt(e.pos))
+sw.sub.Text = "Teleport ke " .. e.name
+end)
+if e.mine then
+local last = 0
+b.MouseButton1Click:Connect(function()
+if os.clock() - last < 0.4 then
+table.remove(saved, e.idx)
+rebuild()
+end
+last = os.clock()
+end)
+end
+end
+end
+sw.sub.Text = ((#saved > 0) and ("Simpanan sendiri: ketuk 2x = hapus") or "Ketuk area untuk teleport")
+if shown == 0 then sw.sub.Text = "Tidak ada area yang cocok" end
+end
+saveBtn.MouseButton1Click:Connect(function()
+local h = getHRP()
+if not h then sw.sub.Text = "Karakter belum siap" return end
+local nm = nameBox.Text:gsub("^%s+", ""):gsub("%s+$", "")
+if nm == "" then nm = "Posisi " .. (#saved + 1) end
+table.insert(saved, {nm, h.Position})
+nameBox.Text = ""
+rebuild()
+sw.sub.Text = "Tersimpan: " .. nm
+end)
+search:GetPropertyChangedSignal("Text"):Connect(rebuild)
+local safePos
+for _, pa in ipairs(presetAreas) do if pa[1] == "Zona Aman" then safePos = pa[2] + Vector3.new(0, 3, 0) end end
+local eggSafe = false
+local backOn, backDelay, backCF, backJob = false, 3, nil, 0
+local lastTp = 0
+local seenTool = setmetatable({}, {__mode = "k"})
+local friendOn = false
+local friendPos = Vector3.new(-0.13, 4.87, -139.63) + Vector3.new(0, 3, 0)
+local function isEggTool0(t)
+if not t:IsA("Tool") then return false end
+if t:GetAttribute("IsEggTool") or t:GetAttribute("EggId") ~= nil then return true end
+local n = t.Name:lower()
+return n:find("egg", 1, true) ~= nil or n:find("telur", 1, true) ~= nil
+end
+local function carrying()
+local ch, bp = player.Character, player:FindFirstChildOfClass("Backpack")
+for _, c in ipairs({ch, bp}) do
+if c then for _, t in ipairs(c:GetChildren()) do if isEggTool0(t) then return true end end end
+end
+return false
+end
+local function visibleGui(o)
+local g = o
+while g and g:IsA("GuiObject") do
+if not g.Visible then return false end
+g = g.Parent
+end
+local sg = o:FindFirstAncestorOfClass("ScreenGui")
+return not (sg and not sg.Enabled)
+end
+local function findDrop()
+local pg = player:FindFirstChildOfClass("PlayerGui")
+if not pg then return nil end
+local label
+for _, d in ipairs(pg:GetDescendants()) do
+if (d:IsA("TextLabel") or d:IsA("TextButton")) and d.Text ~= "" and visibleGui(d) and d.AbsoluteSize.X > 0 then
+local t = d.Text:lower()
+if t:find("drop", 1, true) or t:find("jatuhkan", 1, true) then label = d break end
+end
+end
+if not label then return nil end
+local c = label.AbsolutePosition + label.AbsoluteSize / 2
+local best, bestArea
+for _, b in ipairs(pg:GetDescendants()) do
+if b:IsA("GuiButton") and visibleGui(b) then
+local p, sz = b.AbsolutePosition, b.AbsoluteSize
+if c.X >= p.X and c.X <= p.X + sz.X and c.Y >= p.Y and c.Y <= p.Y + sz.Y then
+local area = sz.X * sz.Y
+if area > 0 and (not bestArea or area < bestArea) then best, bestArea = b, area end
+end
+end
+end
+return best, label
+end
+local function press(btn, label, useClick)
+if btn and not useClick then
+local fired = false
+if getconnections then
+for _, sig in ipairs({"Activated", "MouseButton1Click"}) do
+if not fired then
+pcall(function()
+for _, cn in ipairs(getconnections(btn[sig])) do
+fired = true
+pcall(function() cn:Fire() end)
+end
+end)
+end
+end
+end
+if not fired and firesignal then pcall(function() firesignal(btn.Activated) end) end
+elseif label then
+pcall(function()
+local vim = game:GetService("VirtualInputManager")
+local inset = game:GetService("GuiService"):GetGuiInset()
+local p = label.AbsolutePosition + label.AbsoluteSize / 2 + inset
+vim:SendMouseButtonEvent(p.X, p.Y, 0, true, game, 0)
+task.wait(0.05)
+vim:SendMouseButtonEvent(p.X, p.Y, 0, false, game, 0)
+end)
+end
+end
+local function unstick()
+local c = player.Character
+local h = c and c:FindFirstChildOfClass("Humanoid")
+local r = c and c:FindFirstChild("HumanoidRootPart")
+if r then
+r.Anchored = false
+r.AssemblyLinearVelocity = Vector3.zero
+end
+if h then
+h.PlatformStand = false
+h.Sit = false
+pcall(function() h:ChangeState(Enum.HumanoidStateType.GettingUp) end)
+end
+if c then
+for _, part in ipairs(c:GetChildren()) do
+if part:IsA("BasePart") and part.Anchored then part.Anchored = false end
+end
+end
+end
+local function dropEgg()
+for try = 1, 3 do
+local btn, label = findDrop()
+if label then press(btn, label, try == 2 or not btn) end
+task.wait(1.2)
+unstick()
+if not carrying() then return true end
+end
+return false
+end
+local function toFriend(why)
+if not friendOn then return end
+if os.clock() - lastTp < 1 then return end
+local h = getHRP()
+if not h then return end
+lastTp = os.clock()
+if activeTween then activeTween:Cancel() activeTween = nil end
+if not backCF or (h.Position - friendPos).Magnitude > 40 then backCF = h.CFrame end
+h.CFrame = CFrame.new(friendPos)
+sw.sub.Text = "Telur diambil -> ke teman (" .. why .. ")"
+task.spawn(function()
+task.wait(0.4)
+local done = dropEgg()
+lastTp = os.clock() + 3
+unstick()
+sw.sub.Text = done and "Telur di-drop di tempat teman" or "Drop gagal (tombol Drop tidak ditemukan)"
+if backOn and backCF then
+task.wait(0.5)
+local h2 = getHRP()
+if h2 then
+if activeTween then activeTween:Cancel() activeTween = nil end
+h2.CFrame = backCF
+backCF = nil
+end
+end
+end)
+end
+local function toSafe(why)
+if friendOn then toFriend(why) return end
+if not eggSafe or not safePos then return end
+if os.clock() - lastTp < 1 then return end
+local h = getHRP()
+if not h then return end
+lastTp = os.clock()
+if activeTween then activeTween:Cancel() activeTween = nil end
+if not backCF or (h.Position - safePos).Magnitude > 40 then backCF = h.CFrame end
+h.CFrame = CFrame.new(safePos)
+sw.sub.Text = "Ambil telur -> Zona Aman (" .. why .. ")"
+if backOn then
+backJob = backJob + 1
+local my = backJob
+task.delay(backDelay, function()
+if backJob ~= my or not backOn or not backCF then return end
+local h2 = getHRP()
+if not h2 then return end
+if activeTween then activeTween:Cancel() activeTween = nil end
+h2.CFrame = backCF
+backCF = nil
+sw.sub.Text = "Kembali ke tempat ambil telur"
+end)
+end
+end
+local function isEggTool(t)
+if not t:IsA("Tool") then return false end
+if t:GetAttribute("IsEggTool") or t:GetAttribute("EggId") ~= nil then return true end
+return t.Name:lower():find("egg", 1, true) ~= nil or t.Name:lower():find("telur", 1, true) ~= nil
+end
+local function onToolAdded(t)
+if not isEggTool(t) then return end
+if seenTool[t] then return end -- pindah Backpack <-> tangan bukan ambil baru
+seenTool[t] = true
+toSafe("telur diambil")
+end
+local function watch(container)
+if not container then return end
+for _, t in ipairs(container:GetChildren()) do
+if t:IsA("Tool") then seenTool[t] = true end
+end
+track(container.ChildAdded:Connect(onToolAdded))
+end
+local function watchChar(ch)
+if ch then watch(ch) end
+end
+watch(player:FindFirstChildOfClass("Backpack"))
+watchChar(player.Character)
+track(player.CharacterAdded:Connect(function(ch)
+watchChar(ch)
+watch(player:FindFirstChildOfClass("Backpack"))
+end))
+local lastCarried = tonumber(player:GetAttribute("CarriedEggCount")) or 0
+track(player:GetAttributeChangedSignal("CarriedEggCount"):Connect(function()
+local n = tonumber(player:GetAttribute("CarriedEggCount")) or 0
+if n > lastCarried then toSafe("jumlah telur naik") end
+lastCarried = n
+end))
+makeToggle(pages["EGG"], "Auto Bantu Teman", "Ambil telur -> ke teman -> drop telur", 2, false, function(v) friendOn = v end)
+makeToggle(pages["EGG"], "Ke Zona Aman saat ambil telur", "Otomatis teleport begitu telur diambil", 3, false, function(v) eggSafe = v end)
+makeToggle(pages["EGG"], "Balik ke tempat ambil telur", "Kembali otomatis setelah dari Zona Aman / teman", 4, false, function(v)
+backOn = v
+backJob = backJob + 1
+end)
+makeNumberRow(pages["EGG"], "JEDA BALIK (detik)", backDelay, 5, function(n) backDelay = math.clamp(n, 0.5, 60) end)
+makeOpenCard(pages["EGG"], "Teleport Area", "Savana, Zona Aman & posisi simpanan", 1, sw)
+local prev = sw.onChange
+sw.onChange = function(v)
+if prev then prev(v) end
+if v then search.Text = "" rebuild() end
+end
+Settings.extra.areaSaves = {
+get = function()
+local t = {}
+for _, sv in ipairs(saved) do table.insert(t, {sv[1], sv[2].X, sv[2].Y, sv[2].Z}) end
+return t
+end,
+set = function(t)
+saved = {}
+for _, e in ipairs(t or {}) do table.insert(saved, {e[1], Vector3.new(e[2], e[3], e[4])}) end
+end,
+def = {},
+}
+end)
+secure("SERVER", function()
+local sw = makeSubWindow("SERVER HOP", "Pindah / refresh / rejoin", 240, 300)
+local page = sw.content
+makeOpenCard(pages["MISC"], "Server Hop", "Buka panel pindah server", 10, sw)
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+local options = {1, 5, 10}
+local minP = 1
+local busy = false
+label("Minimal pemain di server tujuan:", 10, C.muted, page, {
+Font = Enum.Font.Gotham, Size = UDim2.new(1, -6, 0, 14), LayoutOrder = 11,
+})
+local seg = make("Frame", {
+Size = UDim2.new(1, -6, 0, 30), BackgroundColor3 = C.panel, BackgroundTransparency = 0.3, LayoutOrder = 12,
+}, page)
+corner(seg, 10)
+make("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, SortOrder = Enum.SortOrder.LayoutOrder}, seg)
+local segBtns = {}
+local function refreshSeg()
+for n, b in pairs(segBtns) do
+local a = (n == minP)
+b.BackgroundTransparency = a and 0 or 1
+b.TextColor3 = a and Color3.new(1, 1, 1) or C.muted
+end
+end
+for i, n in ipairs(options) do
+local b = button("Min " .. n, 12, seg, {
+Size = UDim2.new(1 / #options, 0, 1, 0), BackgroundColor3 = C.purple,
+BackgroundTransparency = 1, AutoButtonColor = false, LayoutOrder = i, TextColor3 = C.muted,
+})
+corner(b, 10)
+b.MouseButton1Click:Connect(function() minP = n refreshSeg() end)
+segBtns[n] = b
+end
+refreshSeg()
+local status = label("", 10, C.muted, page, {
+Font = Enum.Font.Gotham, Size = UDim2.new(1, -6, 0, 40), TextWrapped = true,
+TextYAlignment = Enum.TextYAlignment.Top, LayoutOrder = 17,
+})
+local function httpGet(url)
+local req = (syn and syn.request) or (http and http.request) or http_request or request
+if req then
+local ok, res = pcall(req, {Url = url, Method = "GET"})
+if ok and res and res.Body then return res.Body end
+end
+local ok, body = pcall(function() return game:HttpGet(url) end)
+if ok then return body end
+end
+local function findServers(minPlayers)
+local cands, cursor = {}, ""
+for _ = 1, 5 do
+local url = ("https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Asc&limit=100%s")
+:format(game.PlaceId, cursor ~= "" and ("&cursor=" .. cursor) or "")
+local body = httpGet(url)
+if not body then return cands, false end
+local ok, data = pcall(function() return HttpService:JSONDecode(body) end)
+if not ok or type(data) ~= "table" or not data.data then return cands, false end
+for _, sv in ipairs(data.data) do
+if sv.id ~= game.JobId and sv.playing and sv.maxPlayers
+and sv.playing >= minPlayers and sv.playing < sv.maxPlayers - 1 then
+table.insert(cands, sv.id)
+end
+end
+if #cands >= 20 or not data.nextPageCursor then break end
+cursor = data.nextPageCursor
+end
+return cands, true
+end
+track(TeleportService.TeleportInitFailed:Connect(function(_, _, msg)
+status.Text = "Teleport gagal: " .. tostring(msg)
+busy = false
+end))
+local function actBtn(text, order, color, fn)
+local b = button(text, 12, page, {
+Size = UDim2.new(1, -6, 0, 34), BackgroundColor3 = color, LayoutOrder = order,
+})
+corner(b, 10)
+b.MouseButton1Click:Connect(function()
+if busy then return end
+busy = true
+task.spawn(function()
+local ok, err = pcall(fn)
+if not ok then
+status.Text = "Error: " .. tostring(err)
+busy = false
+end
+end)
+end)
+return b
+end
+actBtn("SERVER HOP", 13, C.purple, function()
+status.Text = "Mencari server dengan minimal " .. minP .. " pemain..."
+local cands, okHttp = findServers(minP)
+if #cands == 0 then
+status.Text = okHttp and ("Tidak ada server dengan minimal " .. minP .. " pemain.")
+or "Gagal mengambil daftar server (executor tidak mendukung HTTP?)."
+busy = false
+return
+end
+local id = cands[math.random(1, #cands)]
+status.Text = "Pindah server (" .. #cands .. " pilihan)..."
+TeleportService:TeleportToPlaceInstance(game.PlaceId, id, player)
+end)
+actBtn("REFRESH SERVER", 14, C.blue, function()
+status.Text = "Keluar dan masuk server baru..."
+TeleportService:Teleport(game.PlaceId, player)
+end)
+actBtn("REJOIN", 15, C.panel2, function()
+status.Text = "Masuk ulang ke server ini..."
+TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, player)
+end)
+end)
+secure("THEME", function()
+local page = pages["FITUR"]
+local presets = {
+{C.purple, C.pink},
+{Color3.fromRGB(220, 50, 50), Color3.fromRGB(255, 120, 90)},
+{Color3.fromRGB(37, 99, 235), Color3.fromRGB(56, 189, 248)},
+{Color3.fromRGB(34, 170, 90), Color3.fromRGB(163, 230, 53)},
+{Color3.fromRGB(234, 179, 8), Color3.fromRGB(251, 146, 60)},
+{Color3.fromRGB(6, 182, 212), Color3.fromRGB(129, 140, 248)},
+{Color3.fromRGB(236, 72, 153), Color3.fromRGB(251, 113, 133)},
+{Color3.fromRGB(230, 230, 240), Color3.fromRGB(150, 150, 170)},
+}
+local rainbowOn = false
+local hue = 0
+local textAcc = 0
+local baseText = Color3.fromRGB(240, 240, 248)
+local baseMuted = Color3.fromRGB(150, 150, 170)
+local function applyTextTheme(c1, c2)
+local oldText, oldMuted, oldAccent = C.text, C.muted, C.accent
+C.text = baseText:Lerp(c1, 0.10)
+C.muted = baseMuted:Lerp(c1, 0.28)
+C.accent = c2:Lerp(Color3.new(1, 1, 1), 0.2)
+for i = #themeTexts, 1, -1 do
+local e = themeTexts[i]
+local o, role = e[1], e[2]
+if not o.Parent then
+table.remove(themeTexts, i)
+else
+local old, new = oldAccent, C.accent
+if role == "text" then old, new = oldText, C.text
+elseif role == "muted" then old, new = oldMuted, C.muted end
+if o.TextColor3 == old then o.TextColor3 = new end
+end
+end
+end
+local function applyColors(seq, c1)
+for _, g in ipairs(themeGrads) do if g.Parent then g.Color = seq end end
+for _, st in ipairs(themeStrokes) do if st.Parent then st.Color = c1 end end
+for _, sc in ipairs(themeScrolls) do if sc.Parent then sc.ScrollBarImageColor3 = c1 end end
+end
+local function rainbowSeq(h)
+local pts = {}
+for i = 0, 6 do
+table.insert(pts, ColorSequenceKeypoint.new(i / 6, Color3.fromHSV((h + i / 6) % 1, 0.75, 1)))
+end
+return ColorSequence.new(pts)
+end
+track(RunService.Heartbeat:Connect(function(dt)
+if not rainbowOn then return end
+hue = (hue + dt * 0.12) % 1
+local c1 = Color3.fromHSV(hue, 0.7, 1)
+applyColors(rainbowSeq(hue), c1)
+textAcc = textAcc + dt
+if textAcc >= 0.15 then
+textAcc = 0
+applyTextTheme(c1, Color3.fromHSV((hue + 0.15) % 1, 0.7, 1))
+end
+end))
+local card = make("Frame", {
+Size = UDim2.new(1, -6, 0, 0), AutomaticSize = Enum.AutomaticSize.Y,
+BackgroundColor3 = C.panel, BackgroundTransparency = 0.2, LayoutOrder = 100,
+}, page)
+corner(card, 10)
+make("UIPadding", {
+PaddingTop = UDim.new(0, 8), PaddingBottom = UDim.new(0, 10),
+PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8),
+}, card)
+make("UIListLayout", {Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder}, card)
+label("WARNA UI", 12, C.text, card, {Size = UDim2.new(1, 0, 0, 18), LayoutOrder = 1})
+label("Pilih warna tema. MIX = warna pelangi bergerak.", 10, C.muted, card, {
+Font = Enum.Font.Gotham, Size = UDim2.new(1, 0, 0, 14), LayoutOrder = 2,
+TextTruncate = Enum.TextTruncate.AtEnd,
+})
+local grid = make("Frame", {
+Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y,
+BackgroundTransparency = 1, LayoutOrder = 3,
+}, card)
+make("UIGridLayout", {
+CellSize = UDim2.new(0, 38, 0, 32), CellPadding = UDim2.new(0, 6, 0, 6),
+SortOrder = Enum.SortOrder.LayoutOrder,
+}, grid)
+local swatches = {}
+local themeClick, themeCur = {}, 1
+local function select(idx)
+for j, st in ipairs(swatches) do st.Transparency = (j == idx) and 0 or 1 end
+end
+local function addSwatch(idx, text, seq, onClick)
+local b = button(text, 10, grid, {
+BackgroundColor3 = Color3.new(1, 1, 1), LayoutOrder = idx, TextColor3 = Color3.new(1, 1, 1),
+TextStrokeTransparency = 0.5,
+})
+corner(b, 8)
+make("UIGradient", {Color = seq, Rotation = 45}, b)
+local st = make("UIStroke", {
+Color = Color3.new(1, 1, 1), Thickness = 2, Transparency = 1,
+ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+}, b)
+swatches[idx] = st
+themeClick[idx] = function() onClick() select(idx) end
+b.MouseButton1Click:Connect(function()
+themeCur = idx
+themeClick[idx]()
+end)
+end
+for i, pr in ipairs(presets) do
+addSwatch(i, "", ColorSequence.new(pr[1], pr[2]), function()
+rainbowOn = false
+applyColors(ColorSequence.new(pr[1], pr[2]), pr[1])
+applyTextTheme(pr[1], pr[2])
+end)
+end
+local mixIdx = #presets + 1
+addSwatch(mixIdx, "MIX", rainbowSeq(0), function() rainbowOn = true textAcc = 1 end)
+select(1)
+Settings.extra.theme = {
+get = function() return themeCur end,
+set = function(i) if themeClick[i] then themeCur = i themeClick[i]() end end,
+def = 1,
+}
+end)
+secure("PLAYER", function()
+local page = pages["PLAYER"]
+local speedOn, jumpOn = false, false
+local speedVal, jumpVal = 50, 100
+local defSpeed, defJump = 16, 50
+track(RunService.Heartbeat:Connect(function()
+local hum = getHum()
+if not hum then return end
+if speedOn then hum.WalkSpeed = speedVal end
+if jumpOn then
+hum.UseJumpPower = true
+hum.JumpPower = jumpVal
+end
+end))
+local function setSpeed(v)
+local hum = getHum()
+if v and hum then defSpeed = hum.WalkSpeed end
+speedOn = v
+if not v and hum then hum.WalkSpeed = defSpeed end
+end
+local function setJump(v)
+local hum = getHum()
+if v and hum then defJump = hum.JumpPower end
+jumpOn = v
+if not v and hum then hum.JumpPower = defJump end
+end
+makeToggle(page, "Speed", "Ubah kecepatan jalan", 1, false, setSpeed)
+makeNumberRow(page, "WALKSPEED", speedVal, 2, function(n) speedVal = math.clamp(n, 1, 500) end)
+makeToggle(page, "Jump Power", "Ubah tinggi lompat", 3, false, setJump)
+makeNumberRow(page, "JUMPPOWER", jumpVal, 4, function(n) jumpVal = math.clamp(n, 1, 500) end)
+local resetBtn = button("RESET KARAKTER", 12, page, {
+Size = UDim2.new(1, -6, 0, 34), BackgroundColor3 = C.red, LayoutOrder = 5,
+})
+corner(resetBtn, 10)
+resetBtn.MouseButton1Click:Connect(function()
+local hum = getHum()
+if hum then hum.Health = 0 end
+end)
+playerCleanup = function()
+setSpeed(false)
+setJump(false)
+end
+end)
+secure("AVATAR", function()
+local page = pages["AVATAR"]
+local original -- snapshot tampilan asli
+local box = inputBox("", page, {
+Size = UDim2.new(1, -6, 0, 34), LayoutOrder = 1,
+PlaceholderText = "Username / nama pemain", PlaceholderColor3 = C.muted,
+TextXAlignment = Enum.TextXAlignment.Center,
+})
+local copyBtn = button("COPY AVATAR", 12, page, {
+Size = UDim2.new(1, -6, 0, 34), BackgroundColor3 = C.purple, LayoutOrder = 2,
+})
+corner(copyBtn, 10)
+local restoreBtn = button("KEMBALIKAN AVATAR", 12, page, {
+Size = UDim2.new(1, -6, 0, 34), BackgroundColor3 = C.panel2, LayoutOrder = 3,
+})
+corner(restoreBtn, 10)
+local info = label("Ketik nama pemain di server (boleh sebagian) atau username Roblox.", 10, C.muted, page, {
+Font = Enum.Font.Gotham, Size = UDim2.new(1, -6, 0, 70), TextWrapped = true,
+TextYAlignment = Enum.TextYAlignment.Top, LayoutOrder = 4,
+})
+local function trim(s) return (s:gsub("^%s+", ""):gsub("%s+$", "")) end
+local function findPlayer(q)
+local ql = q:lower()
+for _, p in ipairs(Players:GetPlayers()) do
+if p.Name:lower() == ql or p.DisplayName:lower() == ql then return p end
+end
+for _, p in ipairs(Players:GetPlayers()) do
+if p.Name:lower():find(ql, 1, true) or p.DisplayName:lower():find(ql, 1, true) then return p end
+end
+end
+local function isCosmetic(o)
+return o:IsA("Accessory") or o:IsA("Shirt") or o:IsA("Pants") or o:IsA("ShirtGraphic")
+or o:IsA("CharacterMesh") or o:IsA("BodyColors")
+end
+local function attachAccessory(ch, hum, src)
+local c = src:Clone()
+local h = c:FindFirstChild("Handle")
+if not h then return false end
+for _, w in ipairs(h:GetChildren()) do
+if w:IsA("Weld") or w:IsA("WeldConstraint") or w:IsA("Motor6D") then w:Destroy() end
+end
+pcall(function() hum:AddAccessory(c) end)
+if not c.Parent then c.Parent = ch end
+task.wait()
+local function welded()
+for _, w in ipairs(h:GetChildren()) do
+if (w:IsA("Weld") or w:IsA("Motor6D")) and w.Part1 and w.Part1:IsDescendantOf(ch) then return true end
+end
+return false
+end
+if welded() then return true end
+local att = h:FindFirstChildOfClass("Attachment")
+if not att then return false end
+local target
+for _, d in ipairs(ch:GetDescendants()) do
+if d:IsA("Attachment") and d.Name == att.Name and d.Parent ~= h and not d:IsDescendantOf(c) then
+target = d
+break
+end
+end
+if not target then return false end
+local weld = Instance.new("Weld")
+weld.Name = "AccessoryWeld"
+weld.Part0 = h
+weld.Part1 = target.Parent
+weld.C0 = att.CFrame
+weld.C1 = target.CFrame
+weld.Parent = h
+return true
+end
+local function colorOf(src, names)
+for _, n in ipairs(names) do
+local p = src:FindFirstChild(n)
+if p and p:IsA("BasePart") then return p.Color end
+end
+end
+local function copyFace(src)
+local ch = player.Character
+local sh, dh = src:FindFirstChild("Head"), ch and ch:FindFirstChild("Head")
+if not (sh and dh) then return false end
+local sf = sh:FindFirstChildOfClass("Decal")
+if not sf then return false end
+local df = dh:FindFirstChildOfClass("Decal")
+if df then df.Texture = sf.Texture else sf:Clone().Parent = dh end
+return true
+end
+local function applyModel(src)
+local ch = player.Character
+local hum = getHum()
+if not ch or not hum then error("karakter tidak ditemukan") end
+for _, o in ipairs(ch:GetChildren()) do
+if isCosmetic(o) then o:Destroy() end
+end
+local accTotal, accOk = 0, 0
+for _, o in ipairs(src:GetChildren()) do
+if o:IsA("Accessory") then
+accTotal = accTotal + 1
+local ok, res = pcall(attachAccessory, ch, hum, o)
+if ok and res then accOk = accOk + 1
+elseif not ok then warn("[JxL] aksesoris gagal: " .. tostring(res)) end
+elseif isCosmetic(o) then
+o:Clone().Parent = ch
+end
+end
+local skin = colorOf(src, {"Head"})
+local torso = colorOf(src, {"UpperTorso", "Torso"}) or skin
+local la = colorOf(src, {"LeftUpperArm", "Left Arm"}) or skin
+local ra = colorOf(src, {"RightUpperArm", "Right Arm"}) or skin
+local ll = colorOf(src, {"LeftUpperLeg", "Left Leg"}) or skin
+local rl = colorOf(src, {"RightUpperLeg", "Right Leg"}) or skin
+if skin then
+pcall(function()
+local bc = ch:FindFirstChildOfClass("BodyColors") or Instance.new("BodyColors")
+bc.HeadColor3, bc.TorsoColor3 = skin, torso
+bc.LeftArmColor3, bc.RightArmColor3 = la, ra
+bc.LeftLegColor3, bc.RightLegColor3 = ll, rl
+bc.Parent = ch
+end)
+end
+for _, sp in ipairs(src:GetChildren()) do
+if sp:IsA("BasePart") and sp.Name ~= "HumanoidRootPart" then
+local dp = ch:FindFirstChild(sp.Name)
+if dp and dp:IsA("BasePart") then pcall(function() dp.Color = sp.Color end) end
+end
+end
+local face = false
+pcall(function() face = copyFace(src) end)
+local sh, dh = src:FindFirstChild("Head"), ch:FindFirstChild("Head")
+if sh and dh then
+local sm = sh:FindFirstChildOfClass("SpecialMesh")
+local dm = dh:FindFirstChildOfClass("SpecialMesh")
+if sm and dm then
+pcall(function()
+dm.MeshId = sm.MeshId
+dm.TextureId = sm.TextureId
+dm.Scale = sm.Scale
+end)
+end
+end
+return "aksesoris " .. accOk .. "/" .. accTotal .. ", kulit " .. (skin and "ok" or "-") .. ", wajah " .. (face and "ok" or "-"), face
+end
+local function snapshot()
+local ch = player.Character
+if not ch then return end
+local m = Instance.new("Model")
+for _, o in ipairs(ch:GetChildren()) do
+if isCosmetic(o) then
+local ok, c = pcall(function() return o:Clone() end)
+if ok and c then c.Parent = m end
+end
+end
+local head = ch:FindFirstChild("Head")
+if head then
+local hp = Instance.new("Part")
+hp.Name = "Head"
+hp.Color = head.Color
+hp.Parent = m
+local f = head:FindFirstChildOfClass("Decal")
+if f then f:Clone().Parent = hp end
+local sm = head:FindFirstChildOfClass("SpecialMesh")
+if sm then sm:Clone().Parent = hp end
+end
+return m
+end
+local function doCopy(q)
+local ch = player.Character
+local hum = getHum()
+if not ch or not hum then error("karakter tidak ditemukan") end
+local p = findPlayer(q)
+local id = p and p.UserId
+if not id then
+local ok, res = pcall(function() return Players:GetUserIdFromNameAsync(q) end)
+if ok then id = res end
+end
+if not id then error("pemain '" .. q .. "' tidak ditemukan") end
+if id == player.UserId and not original then error("itu akun kamu sendiri") end
+if not original then original = snapshot() end
+if p and p ~= player and p.Character and p.Character:FindFirstChildOfClass("Humanoid") then
+local ok, sum, face = pcall(applyModel, p.Character)
+if ok then
+if not face then
+pcall(function()
+local m = Players:GetCharacterAppearanceAsync(id)
+if m then
+if copyFace(m) then sum = sum:gsub("wajah %-", "wajah ok(akun)") end
+m:Destroy()
+end
+end)
+end
+return "Disalin dari " .. p.Name .. ": " .. sum
+end
+warn("[JxL] copy cara 1 gagal: " .. tostring(sum))
+end
+local ok2, model = pcall(function() return Players:GetCharacterAppearanceAsync(id) end)
+if ok2 and model then
+local ok, sum = pcall(applyModel, model)
+pcall(function() model:Destroy() end)
+if ok then return "Disalin (ID " .. id .. "): " .. sum end
+warn("[JxL] copy cara 2 gagal: " .. tostring(sum))
+else
+warn("[JxL] GetCharacterAppearanceAsync gagal: " .. tostring(model))
+end
+local desc = Players:GetHumanoidDescriptionFromUserId(id)
+hum:ApplyDescription(desc)
+return "Disalin lewat HumanoidDescription (ID " .. id .. ")"
+end
+local busy = false
+copyBtn.MouseButton1Click:Connect(function()
+if busy then return end
+local q = trim(box.Text)
+if q == "" then info.Text = "Isi nama pemain dulu." return end
+busy = true
+info.Text = "Menyalin..."
+task.spawn(function()
+local ok, res = pcall(doCopy, q)
+info.Text = ok and res or ("Gagal: " .. tostring(res))
+busy = false
+end)
+end)
+restoreBtn.MouseButton1Click:Connect(function()
+if not original then info.Text = "Belum ada avatar asli yang tersimpan." return end
+local ok, sum = pcall(applyModel, original)
+info.Text = ok and ("Avatar dikembalikan: " .. sum) or ("Gagal: " .. tostring(sum))
+end)
+track(player.CharacterAdded:Connect(function()
+if original then pcall(function() original:Destroy() end) end
+original = nil
+end))
+end)
+secure("FAKENICK", function()
+local page = pages["AVATAR"]
+local mode = "off" -- off | admin | creator
+local nameText = player.DisplayName
+local colorIdx = 1
+local bb
+local oldDist
+local colors = {
+Color3.fromRGB(255, 205, 60),  -- emas
+Color3.fromRGB(255, 90, 90),   -- merah
+Color3.fromRGB(90, 160, 255),  -- biru
+Color3.fromRGB(90, 220, 130),  -- hijau
+Color3.fromRGB(255, 120, 200), -- pink
+Color3.fromRGB(80, 220, 230),  -- cyan
+Color3.fromRGB(170, 130, 255), -- ungu
+}
+label("FAKE NICK (hanya terlihat di layarmu)", 11, C.muted, page, {
+Size = UDim2.new(1, -6, 0, 20), LayoutOrder = 10,
+})
+local function clear()
+if bb then pcall(function() bb:Destroy() end) bb = nil end
+local hum = getHum()
+if hum and oldDist ~= nil then
+pcall(function() hum.DisplayDistanceType = oldDist end)
+end
+oldDist = nil
+end
+local function apply()
+clear()
+if mode == "off" then return end
+local head = player.Character and player.Character:FindFirstChild("Head")
+local hum = getHum()
+if not head or not hum then return end
+oldDist = hum.DisplayDistanceType
+pcall(function() hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None end)
+bb = make("BillboardGui", {
+Name = "JxL_FakeNick", Adornee = head, Size = UDim2.new(0, 240, 0, 30),
+StudsOffset = Vector3.new(0, 3.2, 0), AlwaysOnTop = true, LightInfluence = 0,
+}, gui)
+local txt = mode == "admin" and ("👑 " .. nameText .. " 👑") or nameText
+label(txt, 16, colors[colorIdx], bb, {
+Size = UDim2.new(1, 0, 1, 0), TextXAlignment = Enum.TextXAlignment.Center,
+TextStrokeTransparency = 0.35, TextStrokeColor3 = Color3.new(0, 0, 0),
+})
+end
+local seg = make("Frame", {
+Size = UDim2.new(1, -6, 0, 30), BackgroundColor3 = C.panel, BackgroundTransparency = 0.3, LayoutOrder = 11,
+}, page)
+corner(seg, 10)
+make("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, SortOrder = Enum.SortOrder.LayoutOrder}, seg)
+local segBtns = {}
+local function refreshSeg()
+for k, b in pairs(segBtns) do
+local a = (k == mode)
+b.BackgroundTransparency = a and 0 or 1
+b.TextColor3 = a and Color3.new(1, 1, 1) or C.muted
+end
+end
+for i, m in ipairs({{"off", "Mati"}, {"admin", "Admin"}, {"creator", "Kreator"}}) do
+local b = button(m[2], 12, seg, {
+Size = UDim2.new(1 / 3, 0, 1, 0), BackgroundColor3 = C.purple,
+BackgroundTransparency = 1, AutoButtonColor = false, LayoutOrder = i, TextColor3 = C.muted,
+})
+corner(b, 10)
+b.MouseButton1Click:Connect(function()
+mode = m[1]
+refreshSeg()
+apply()
+end)
+segBtns[m[1]] = b
+end
+refreshSeg()
+local nameBox = inputBox(nameText, page, {
+Size = UDim2.new(1, -6, 0, 32), LayoutOrder = 12, TextSize = 13,
+PlaceholderText = "Nama yang ditampilkan", PlaceholderColor3 = C.muted,
+TextXAlignment = Enum.TextXAlignment.Center,
+})
+nameBox.FocusLost:Connect(function()
+local t = nameBox.Text:gsub("^%s+", ""):gsub("%s+$", "")
+if t == "" then t = player.DisplayName end
+nameText = t
+nameBox.Text = t
+if mode ~= "off" then apply() end
+end)
+local row = make("Frame", {Size = UDim2.new(1, -6, 0, 34), BackgroundTransparency = 1, LayoutOrder = 13}, page)
+make("UIListLayout", {
+FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6),
+VerticalAlignment = Enum.VerticalAlignment.Center, SortOrder = Enum.SortOrder.LayoutOrder,
+}, row)
+local swStrokes = {}
+local function refreshColor()
+for i, st in ipairs(swStrokes) do st.Transparency = (i == colorIdx) and 0 or 1 end
+end
+for i, col in ipairs(colors) do
+local b = button("", 10, row, {
+Size = UDim2.new(0, 28, 0, 28), BackgroundColor3 = col, LayoutOrder = i,
+})
+corner(b, 14)
+swStrokes[i] = make("UIStroke", {
+Color = Color3.new(1, 1, 1), Thickness = 2, Transparency = 1,
+ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+}, b)
+b.MouseButton1Click:Connect(function()
+colorIdx = i
+refreshColor()
+if mode ~= "off" then apply() end
+end)
+end
+refreshColor()
+track(player.CharacterAdded:Connect(function()
+task.wait(1)
+if mode ~= "off" then apply() end
+end))
+fakeCleanup = clear
+end)
+secure("ABYSAL", function()
+local sw = makeSubWindow("ABYSAL", "Auto farm kristal layer 1-6", 250, 340)
+local page = sw.content
+makeOpenCard(pages["ABYSAL"], "Abysal", "Buka panel auto farm kristal", 1, sw)
+local farmOn = false
+local farmJob = 0
+local tpOn = true
+local loopOn = true
+local delay = 0.2
+local idleWait = 3
+local maxTry = 5
+local climbSpeed = 40
+local climbWait = 5
+local startL, endL = 1, 6
+local target = 1
+local argA, argB = 3020, 150
+local remote
+local attempts = setmetatable({}, {__mode = "k"})
+local giveUp = setmetatable({}, {__mode = "k"})
+local skipped = 0
+local stairsLow, stairsHigh = {}, {}
+local climbTween
+local farmVisual
+local function findRemote()
+if remote and remote.Parent then return remote end
+for _, o in ipairs(game:GetDescendants()) do
+if o:IsA("RemoteEvent") and o.Name == "Abyss" then
+remote = o
+return o
+end
+end
+end
+local function partOf(inst)
+if inst:IsA("BasePart") then return inst end
+if inst:IsA("Model") then
+return inst.PrimaryPart or inst:FindFirstChildWhichIsA("BasePart", true)
+end
+end
+local function posOf(c, part)
+if c:IsA("Model") then
+local ok, p = pcall(function() return c:GetPivot().Position end)
+if ok then return p end
+end
+return part.Position
+end
+local function listCrystals()
+local list = {}
+local root = workspace:FindFirstChild("EventAbyssRuntime")
+if not root then return list, false end
+for _, layer in ipairs(root:GetChildren()) do
+local sc = layer:FindFirstChild("SpawnedCrystals")
+if sc then
+local ln = tonumber(layer.Name:match("%d+")) or 0
+for _, c in ipairs(sc:GetChildren()) do
+local part = partOf(c)
+if part then table.insert(list, {c, part, ln}) end
+end
+end
+end
+return list, true
+end
+local function nearest(list, layerOnly, usable)
+local hrp = getHRP()
+local best, bestD
+for _, e in ipairs(list) do
+if (not layerOnly or e[3] == layerOnly) and (not usable or not giveUp[e[1]]) then
+local d = hrp and (posOf(e[1], e[2]) - hrp.Position).Magnitude or 0
+if not bestD or d < bestD then best, bestD = e, d end
+end
+end
+return best, bestD
+end
+local offsets = {
+Vector3.new(0, 3, 0), Vector3.new(0, 0, 0), Vector3.new(0, 6, 0),
+Vector3.new(3, 2, 0), Vector3.new(-3, 2, 0),
+}
+local function collect(e, tryNo)
+local c, part, ln = e[1], e[2], e[3]
+local hrp = getHRP()
+local pos = posOf(c, part)
+if tpOn and hrp then
+hrp.CFrame = CFrame.new(pos + offsets[(tryNo - 1) % #offsets + 1])
+task.wait(0.15 + 0.1 * tryNo)
+end
+pcall(function()
+for _, d in ipairs(c:GetDescendants()) do
+if d:IsA("ProximityPrompt") then fireproximityprompt(d) end
+end
+end)
+pcall(function()
+if hrp then
+firetouchinterest(hrp, part, 0)
+firetouchinterest(hrp, part, 1)
+end
+end)
+local r = findRemote()
+if not r then return false, false end
+r:FireServer("Collected", ln, pos, argA, argB, c)
+task.wait(0.3)
+return true, (not c:IsDescendantOf(workspace))
+end
+local info = label("Status: mati", 10, C.muted, page, {
+Font = Enum.Font.Gotham, Size = UDim2.new(1, -6, 0, 54), TextWrapped = true,
+TextYAlignment = Enum.TextYAlignment.Top, LayoutOrder = 30,
+})
+local function stopClimb()
+if climbTween then pcall(function() climbTween:Cancel() end) climbTween = nil end
+end
+local function goStairs(my, layer)
+local hrp = getHRP()
+local low = stairsLow[layer] or stairsLow[0]
+local high = stairsHigh[layer] or stairsHigh[0]
+if not hrp or not low then return false end
+info.Text = "Layer " .. layer .. " selesai, balik ke tangga"
+hrp.CFrame = low
+task.wait(0.6)
+if farmJob ~= my then return true end
+if high then
+info.Text = "Naik ke layer " .. (layer + 1) .. "..."
+local dist = (hrp.Position - high.Position).Magnitude
+climbTween = TweenService:Create(hrp,
+TweenInfo.new(math.max(dist / climbSpeed, 0.1), Enum.EasingStyle.Linear), {CFrame = high})
+climbTween:Play()
+climbTween.Completed:Wait()
+climbTween = nil
+else
+info.Text = "Menunggu naik tangga..."
+task.wait(climbWait)
+end
+return true
+end
+local function setFarm(v)
+farmOn = v
+farmJob = farmJob + 1
+local my = farmJob
+stopClimb()
+if not v then info.Text = "Status: mati" return end
+target = startL
+attempts = setmetatable({}, {__mode = "k"})
+giveUp = setmetatable({}, {__mode = "k"})
+skipped = 0
+task.spawn(function()
+local lastFound = os.clock()
+local found = false
+while farmOn and farmJob == my do
+local list, hasRoot = listCrystals()
+local best = nearest(list, target, true)
+if best then
+lastFound = os.clock()
+found = true
+local c = best[1]
+attempts[c] = (attempts[c] or 0) + 1
+if attempts[c] > maxTry then
+giveUp[c] = true
+skipped = skipped + 1
+else
+local ok, hasR, gone = pcall(collect, best, attempts[c])
+if ok and hasR == false then
+info.Text = "Remote Abyss tidak ditemukan"
+task.wait(1)
+else
+info.Text = "Layer " .. target .. "/" .. endL
+.. (attempts[c] > 1 and (" | coba ulang " .. attempts[c] .. "/" .. maxTry) or "")
+.. (skipped > 0 and (" | dilewati " .. skipped) or "")
+end
+end
+elseif not hasRoot then
+info.Text = "EventAbyssRuntime tidak ada (event belum aktif?)"
+task.wait(1)
+else
+local need = found and idleWait or idleWait * 3
+if os.clock() - lastFound >= need then
+if target >= endL then
+if loopOn then
+target = startL
+local entry = stairsLow[startL]
+local hrp = getHRP()
+if entry and hrp then hrp.CFrame = entry end
+info.Text = "Semua layer selesai, ulang dari layer " .. startL
+else
+farmOn = false
+farmJob = farmJob + 1
+if farmVisual then farmVisual(false) end
+info.Text = "Selesai: semua layer sampai " .. endL
+.. (skipped > 0 and (" | dilewati " .. skipped) or "")
+return
+end
+else
+local ok = goStairs(my, target)
+if farmJob ~= my then return end
+target = target + 1
+if not ok then
+info.Text = "Tangga layer " .. (target - 1) .. " belum diatur, lanjut layer " .. target
+end
+end
+found = false
+lastFound = os.clock()
+else
+info.Text = "Layer " .. target .. "/" .. endL .. ": menunggu kristal spawn..."
+end
+task.wait(0.5)
+end
+task.wait(delay)
+end
+end)
+end
+local _, fv = makeToggle(page, "Auto Farm Kristal", "Layer 1 sampai 6 berurutan", 1, false, setFarm)
+farmVisual = fv
+makeToggle(page, "Teleport ke Kristal", "Pindah dulu sebelum ambil", 2, true, function(v) tpOn = v end)
+makeToggle(page, "Ulangi dari Awal", "Setelah layer akhir, mulai lagi", 3, true, function(v) loopOn = v end)
+makeNumberRow(page, "LAYER AWAL", startL, 4, function(n) startL = math.clamp(math.floor(n), 1, 20) end)
+makeNumberRow(page, "LAYER AKHIR", endL, 5, function(n) endL = math.clamp(math.floor(n), 1, 20) end)
+makeNumberRow(page, "JEDA (DETIK)", delay, 6, function(n) delay = math.clamp(n, 0.05, 10) end)
+makeNumberRow(page, "TUNGGU KOSONG (DTK)", idleWait, 7, function(n) idleWait = math.clamp(n, 1, 60) end)
+makeNumberRow(page, "MAKS COBA PER KRISTAL", maxTry, 8, function(n) maxTry = math.clamp(math.floor(n), 1, 20) end)
+makeNumberRow(page, "KECEPATAN NAIK", climbSpeed, 9, function(n) climbSpeed = math.clamp(n, 5, 300) end)
+local function layerNow()
+local list = listCrystals()
+local e = nearest(list, nil, false)
+return e and e[3] or target
+end
+local function actBtn(text, order, color, fn)
+local b = button(text, 12, page, {
+Size = UDim2.new(1, -6, 0, 34), BackgroundColor3 = color, LayoutOrder = order,
+})
+corner(b, 10)
+b.MouseButton1Click:Connect(fn)
+return b
+end
+actBtn("SET TANGGA (BAWAH)", 10, C.purple, function()
+local hrp = getHRP()
+if not hrp then info.Text = "Karakter tidak ditemukan" return end
+local ln = layerNow()
+stairsLow[ln] = hrp.CFrame
+info.Text = "Bawah tangga tersimpan untuk layer " .. ln
+end)
+actBtn("SET PUNCAK (ATAS)", 11, C.purple, function()
+local hrp = getHRP()
+if not hrp then info.Text = "Karakter tidak ditemukan" return end
+local ln = layerNow()
+stairsHigh[ln] = hrp.CFrame
+info.Text = "Puncak tangga tersimpan untuk layer " .. ln
+end)
+actBtn("HAPUS POSISI TANGGA", 12, C.red, function()
+stairsLow, stairsHigh = {}, {}
+info.Text = "Semua posisi tangga dihapus"
+end)
+actBtn("SCAN KRISTAL", 13, C.blue, function()
+local list, hasRoot = listCrystals()
+if not hasRoot then info.Text = "EventAbyssRuntime tidak ada" return end
+local per = {}
+for _, e in ipairs(list) do per[e[3]] = (per[e[3]] or 0) + 1 end
+local keys = {}
+for l in pairs(per) do table.insert(keys, l) end
+table.sort(keys)
+local parts = {}
+for _, l in ipairs(keys) do table.insert(parts, "L" .. l .. "=" .. per[l]) end
+local lows = {}
+for l in pairs(stairsLow) do table.insert(lows, tostring(l)) end
+table.sort(lows)
+local r = findRemote()
+local near, d = nearest(list, nil, false)
+local nearTxt = ""
+if near then
+nearTxt = " | Terdekat: " .. near[1].Name .. " (" .. near[1].ClassName .. ", " .. math.floor(d) .. " stud)"
+print("[JxL] kristal terdekat: " .. near[1]:GetFullName())
+for k, v in pairs(near[1]:GetAttributes()) do print("[JxL]   attribute " .. k .. " = " .. tostring(v)) end
+end
+info.Text = "Kristal: " .. (#parts > 0 and table.concat(parts, " ") or "tidak ada")
+.. " | Tangga layer: " .. (#lows > 0 and table.concat(lows, ",") or "-")
+.. " | Remote: " .. (r and "ok" or "tidak ditemukan") .. nearTxt
+end)
+makeNumberRow(page, "ARGUMEN 4", argA, 20, function(n) argA = n end)
+makeNumberRow(page, "ARGUMEN 5", argB, 21, function(n) argB = n end)
+abyssCleanup = function()
+farmOn = false
+farmJob = farmJob + 1
+stopClimb()
+end
+end)
+local settingsAutoLoad
+secure("SETTINGS", function()
+local HttpService = game:GetService("HttpService")
+local FILE = "JOKERxLynxx_settings.json"
+local sw = makeSubWindow("PENGATURAN", "Simpan & reset pengaturan", 240, 270)
+local page = sw.content
+local function collect()
+local d = {toggles = {}, nums = {}, extra = {}}
+for k, t in pairs(Settings.toggles) do d.toggles[k] = t.get() end
+for k, t in pairs(Settings.nums) do
+local v = t.get()
+if v then d.nums[k] = v end
+end
+for k, t in pairs(Settings.extra) do d.extra[k] = t.get() end
+return d
+end
+local function apply(d)
+local n = 0
+for k, v in pairs(d.nums or {}) do
+local t = Settings.nums[k]
+if t then pcall(t.set, v) n = n + 1 end
+end
+for k, v in pairs(d.extra or {}) do
+local t = Settings.extra[k]
+if t then pcall(t.set, v) n = n + 1 end
+end
+for k, v in pairs(d.toggles or {}) do
+local t = Settings.toggles[k]
+if t and t.get() ~= v then pcall(t.set, v) n = n + 1 end
+end
+return n
+end
+local info = label("Simpan = ingat semua toggle, angka, warna UI & kecepatan SP.\nReset = kembali ke awal.", 10, C.text, page, {
+Font = Enum.Font.Gotham, Size = UDim2.new(1, -6, 0, 52), TextWrapped = true,
+TextYAlignment = Enum.TextYAlignment.Top, LayoutOrder = 1,
+})
+local autoLoad = true
+local setAuto = makeToggle(page, "Muat Otomatis", "Terapkan pengaturan tersimpan saat dijalankan", 2, true, function(v) autoLoad = v end)
+Settings.toggles["Muat Otomatis"] = nil -- pengaturan ini tidak ikut disimpan
+local saveBtn = button("SIMPAN PENGATURAN", 12, page, {
+Size = UDim2.new(1, -6, 0, 34), BackgroundColor3 = C.blue, LayoutOrder = 3,
+})
+corner(saveBtn, 10)
+saveBtn.MouseButton1Click:Connect(function()
+local d = collect()
+d.autoLoad = autoLoad
+_G.JxL_Settings = d
+local ok, json = pcall(function() return HttpService:JSONEncode(d) end)
+if ok and writefile then
+local w = pcall(writefile, FILE, json)
+info.Text = w and ("Tersimpan ke file " .. FILE) or "Tersimpan di memori sesi (file gagal ditulis)"
+else
+info.Text = "Tersimpan di memori sesi (executor tanpa writefile)"
+end
+end)
+local loadBtn = button("MUAT PENGATURAN TERSIMPAN", 11, page, {
+Size = UDim2.new(1, -6, 0, 32), BackgroundColor3 = C.panel2, LayoutOrder = 4,
+})
+corner(loadBtn, 10)
+local function readSaved()
+if isfile and readfile then
+local ok, d = pcall(function()
+if isfile(FILE) then return HttpService:JSONDecode(readfile(FILE)) end
+end)
+if ok and d then return d end
+end
+return _G.JxL_Settings
+end
+loadBtn.MouseButton1Click:Connect(function()
+local d = readSaved()
+if not d then info.Text = "Belum ada pengaturan tersimpan." return end
+info.Text = "Dimuat: " .. apply(d) .. " pengaturan diterapkan."
+end)
+local resetBtn = button("RESET PENGATURAN", 12, page, {
+Size = UDim2.new(1, -6, 0, 34), BackgroundColor3 = Color3.fromRGB(190, 50, 60), LayoutOrder = 5,
+})
+corner(resetBtn, 10)
+resetBtn.MouseButton1Click:Connect(function()
+local d = {toggles = {}, nums = {}, extra = {}}
+for k, t in pairs(Settings.toggles) do d.toggles[k] = t.def end
+for k, t in pairs(Settings.nums) do d.nums[k] = t.def end
+for k, t in pairs(Settings.extra) do d.extra[k] = t.def end
+apply(d)
+_G.JxL_Settings = nil
+if delfile and isfile then pcall(function() if isfile(FILE) then delfile(FILE) end end) end
+info.Text = "Semua pengaturan dikembalikan ke awal & simpanan dihapus."
+end)
+setBtn.MouseButton1Click:Connect(function() sw.setOpen(not sw.open) end)
+settingsAutoLoad = function()
+local d = readSaved()
+if d and d.autoLoad ~= false then
+local n = apply(d)
+info.Text = "Pengaturan tersimpan dimuat otomatis (" .. n .. ")."
+end
+end
+end)
+selectTab("TPSP")
+if settingsAutoLoad then pcall(settingsAutoLoad) end
+if #errors > 0 then
+setStatus("JOKERxLynxx: siap (error di " .. #errors .. " bagian, cek konsol)", Color3.fromRGB(255, 200, 80), 8)
+else
+setStatus("JOKERxLynxx: siap", Color3.fromRGB(120, 255, 150), 4)
+end
+end)
+if not okAll then
+setStatus("JOKERxLynxx ERROR: " .. tostring(errAll), Color3.fromRGB(255, 100, 100))
+end
