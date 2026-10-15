@@ -1594,13 +1594,19 @@ local page = pages["NOTIF"]
 local on = false
 local showScreen = true
 local savePos = true
+local autoSteal = true
+local returnAfter = true
+local lastPP
 local knownRank = {common = 1, umum = 1, uncommon = 2, rare = 3, langka = 3, epic = 4, legendary = 5, legendaris = 5, mythic = 6, mythical = 6, mitos = 6, ilahi = 7, divine = 7, godly = 7, secret = 8, rahasia = 8, exotic = 8, eternal = 9, abadi = 9}
 local lowTier = {common = true, umum = true, uncommon = true, rare = true, langka = true, epic = true, legendary = true, legendaris = true, mythic = true, mythical = true, mitos = true}
 local tiers = {} -- nama -> {n, sum}
+local hideTier = {common = true, comon = true, uncommon = true, uncomon = true, rare = true, epic = true, legendary = true, mythic = true, mythical = true, mytic = true, umum = true, langka = true, legendaris = true, mitos = true}
 local minChoice = 1 -- 1 = Auto (tier paling langka kedua), 2 = Semua, 3+ = tier
 local function sortedTiers()
 local list = {}
-for nm, d in pairs(tiers) do table.insert(list, {nm, d}) end
+for nm, d in pairs(tiers) do
+if not hideTier[nm:lower()] then table.insert(list, {nm, d}) end
+end
 local allKnown, allVal = true, true
 for _, e in ipairs(list) do
 if not knownRank[e[1]:lower()] then allKnown = false end
@@ -1740,19 +1746,51 @@ Size = UDim2.new(1, -2, 0, 30), BackgroundColor3 = C.panel2, LayoutOrder = 3,
 corner(rb, 8)
 makeToggle(page, "Simpan Posisi Sebelum Teleport", "Ingat tempatmu agar bisa kembali", 4, true, function(v) savePos = v end)
 local backBtn = button("KEMBALI KE POSISI TERSIMPAN", 11, page, {
-Size = UDim2.new(1, -2, 0, 30), BackgroundColor3 = C.panel2, LayoutOrder = 5,
+Size = UDim2.new(1, -2, 0, 30), BackgroundColor3 = C.panel2, LayoutOrder = 7,
 })
 corner(backBtn, 8)
 local tb = button("TELEPORT KE TELUR TERAKHIR", 11, page, {
-Size = UDim2.new(1, -2, 0, 30), BackgroundColor3 = C.panel2, LayoutOrder = 6,
+Size = UDim2.new(1, -2, 0, 30), BackgroundColor3 = C.panel2, LayoutOrder = 8,
 })
 corner(tb, 8)
-label("TELUR MUNCUL  (ketuk + untuk teleport)", 10, C.muted, page, {Size = UDim2.new(1, -6, 0, 16), LayoutOrder = 7})
-local function goTo(pos)
+label("TELUR MUNCUL  (ketuk + untuk teleport)", 10, C.muted, page, {Size = UDim2.new(1, -6, 0, 16), LayoutOrder = 9})
+makeToggle(page, "Auto Curi Saat Teleport", "Setelah teleport ke telur, langsung curi", 5, true, function(v) autoSteal = v end)
+makeToggle(page, "Kembali Setelah Curi", "Teleport balik ke posisi tersimpan setelah steal", 6, true, function(v) returnAfter = v end)
+local function stealNow(pp)
+if not (pp and pp.Parent) then return end
+local origHold = pp.HoldDuration
+pcall(function() pp.HoldDuration = 0 end)
+for _ = 1, 4 do
+if not pp.Parent or not pp.Enabled then break end
+local ok = false
+if fireproximityprompt then ok = pcall(fireproximityprompt, pp) end
+if not ok then
+pcall(function()
+pp:InputHoldBegin()
+pp:InputHoldEnd()
+end)
+end
+task.wait(0.12)
+end
+pcall(function() if pp.Parent then pp.HoldDuration = origHold end end)
+end
+local function goTo(pos, pp)
 local h = getHRP()
 if not h then return end
-if savePos then savedCF = h.CFrame end
+local from = h.CFrame
+if savePos then savedCF = from end
 h.CFrame = CFrame.new(pos + Vector3.new(0, 4, 0))
+if autoSteal and pp then
+task.spawn(function()
+task.wait(0.25)
+stealNow(pp)
+if returnAfter and savedCF then
+task.wait(0.15)
+local h2 = getHRP()
+if h2 then h2.CFrame = savedCF end
+end
+end)
+end
 end
 backBtn.MouseButton1Click:Connect(function()
 local h = getHRP()
@@ -1764,10 +1802,10 @@ toast("Belum ada posisi tersimpan", true)
 end
 end)
 tb.MouseButton1Click:Connect(function()
-if lastPos then goTo(lastPos) else toast("Belum ada telur yang terdeteksi", true) end
+if lastPos then goTo(lastPos, lastPP) else toast("Belum ada telur yang terdeteksi", true) end
 end)
 local rows, eggN = {}, 0
-local function addRow(m, part, r, val)
+local function addRow(m, part, r, val, pp)
 eggN = eggN + 1
 if eggN > 380 then eggN = 380 end
 local col = rcol[r or ""] or Color3.fromRGB(255, 200, 60)
@@ -1783,7 +1821,7 @@ local plus = button("+", 20, card, {Size = UDim2.new(0, 40, 0, 34), Position = U
 corner(plus, 10)
 plus.MouseButton1Click:Connect(function()
 local pos = part.Parent and part.Position or p0
-goTo(pos)
+goTo(pos, pp)
 end)
 table.insert(rows, {card = card, part = part})
 while #rows > 25 do
@@ -1822,8 +1860,8 @@ end
 if not passes(r) then return end
 local part = m:IsA("Model") and (m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart", true)) or m
 if not (part and part:IsA("BasePart")) then return end
-lastModel, lastPos = m, part.Position
-addRow(m, part, r, val)
+lastModel, lastPos, lastPP = m, part.Position, pp
+addRow(m, part, r, val, pp)
 toast(string.format("TELUR %s (%s)%s muncul", m.Name, r or "?", val and (" " .. val) or ""))
 end
 local function scan()
