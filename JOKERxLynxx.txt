@@ -1,4 +1,4 @@
--- JOKERxLynxx v13 BETA | Jump for Animals
+-- JOKERxLynxx (v13 BETA) - Fitur (Infinity Jump, Noclip, Fly, ESP), Copy Avatar, Anti Lag
 print("[JxL] script mulai dijalankan")
 if _G.JxL_Cleanup then pcall(_G.JxL_Cleanup) end
 local statusLbl
@@ -1747,7 +1747,7 @@ if isTierWord(t) then
 if not inf.tier then inf.tier = t end
 elseif t:find("%$") or t:find("/s") then
 if not inf.val then inf.val = t end
-elseif not t:match("^[%d%.,:%s%%xX]+$") and #t >= 3 and #t <= 36 and not inf.name then
+elseif t:find("%a%a%a") and not t:match("^[%$%d%.,:%s%%xX]+%a?%a?/?s?$") and #t >= 3 and #t <= 36 and not inf.name then
 inf.name = t
 end
 end
@@ -1994,14 +1994,49 @@ end
 end
 end
 end)
-local stealWords2 = {"curi", "steal", "ambil", "take", "grab", "collect", "pick", "claim", "rob"}
+local zoneKeys = {"zone", "area", "biome", "world", "island", "region", "map", "zona", "dunia", "pulau"}
+local badWords = {"collect", "claim", "cash", "sell", "feed", "upgrade", "hatch", "buy", "open", "kumpul", "jual", "beli", "tetas", "equip", "place", "pet", "rename"}
+local function lowerHas(str, list)
+for _, w in ipairs(list) do if str:find(w, 1, true) then return true end end
+return false
+end
+local function isAnimal(m)
+if m:FindFirstChildWhichIsA("Humanoid", true) then return true end
+local nm = m.Name:lower()
+if nm:find("egg", 1, true) or nm:find("telur", 1, true) then return false end
+if nm:find("pet", 1, true) or nm:find("animal", 1, true) or nm:find("hewan", 1, true) then return true end
+for k in pairs(m:GetAttributes()) do
+local kl = tostring(k):lower()
+if kl:find("pet", 1, true) or kl:find("animal", 1, true) then return true end
+end
+return false
+end
+local function isMine(m)
+local o = m
+for _ = 1, 5 do
+if not o or o == workspace then break end
+if o.Name == player.Name then return true end
+for k, v in pairs(o:GetAttributes()) do
+if tostring(k):lower():find("owner", 1, true) and (v == player.Name or v == player.UserId or v == player.DisplayName) then return true end
+end
+o = o.Parent
+end
+return false
+end
 local function isEggPrompt(pp)
 local at = ((pp.ActionText or "") .. " " .. (pp.ObjectText or "")):lower()
-for _, w in ipairs(stealWords2) do if at:find(w, 1, true) then return true end end
-local m = pp:FindFirstAncestorOfClass("Model")
-if m then
+local m = pp:FindFirstAncestorOfClass("Model") or pp.Parent
+if not m then return false end
+if isAnimal(m) or isMine(m) then return false end
+if at:find("curi", 1, true) or at:find("steal", 1, true) or at:find("%f[%a]rob%f[%A]") then return true end
+if lowerHas(at, badWords) then return false end
 local nm = m.Name:lower()
 if nm:find("egg", 1, true) or nm:find("telur", 1, true) then return true end
+local o = m.Parent
+for _ = 1, 5 do
+if not o or o == workspace then break end
+if lowerHas(o.Name:lower(), zoneKeys) then return true end
+o = o.Parent
 end
 return false
 end
@@ -2033,6 +2068,7 @@ local function checkModel(m)
 if not on or seen[m] then return end
 local nm = m.Name:lower()
 if not (nm:find("egg", 1, true) or nm:find("telur", 1, true)) or nm:find("debris", 1, true) then return end
+if isAnimal(m) or isMine(m) then return end
 if not infoOf(m).tier then return end -- tanpa prompt Curi harus punya tier agar tidak berisik
 seen[m] = true
 process(m, m:FindFirstChildWhichIsA("ProximityPrompt", true))
@@ -2140,12 +2176,7 @@ corner(saveBtn, 8)
 local keys = {"savana", "savanna", "volcano", "vulkan", "dunia", "world", "area", "zone", "biome", "island", "pulau"}
 local skip = {"debris", "egg", "spawn", "decor", "tree", "pohon", "prop", "effect", "sound"}
 local saved = {} -- {name, Vector3}
-local presetAreas = {
-{"Savana", Vector3.new(-4.10, 6275.48, -1408.76)},
-{"Volcano", Vector3.new(-18.72, 9638.99, -1500.00)},
-{"Zona Aman", Vector3.new(3.07, 1.00, -36.10)},
-{"Teman", Vector3.new(-0.13, 4.87, -139.63)},
-}
+local presetAreas = {} -- kosong: universal, semua posisi dari simpanan kamu
 local function groundAt(pos)
 local rp = RaycastParams.new()
 rp.FilterType = Enum.RaycastFilterType.Exclude
@@ -2251,14 +2282,13 @@ rebuild()
 sw.sub.Text = "Tersimpan: " .. nm
 end)
 search:GetPropertyChangedSignal("Text"):Connect(rebuild)
-local safePos
-for _, pa in ipairs(presetAreas) do if pa[1] == "Zona Aman" then safePos = pa[2] + Vector3.new(0, 3, 0) end end
+local safePos -- diset pemain lewat tombol "SET ZONA AMAN"
 local eggSafe = false
 local backOn, backDelay, backCF, backJob = false, 3, nil, 0
 local lastTp = 0
 local seenTool = setmetatable({}, {__mode = "k"})
 local friendOn = false
-local friendPos = Vector3.new(-0.13, 4.87, -139.63) + Vector3.new(0, 3, 0)
+local friendPos -- diset pemain lewat tombol "SET POSISI TEMAN"
 local function isEggTool0(t)
 if not t:IsA("Tool") then return false end
 if t:GetAttribute("IsEggTool") or t:GetAttribute("EggId") ~= nil then return true end
@@ -2366,6 +2396,7 @@ if not friendOn then return end
 if os.clock() - lastTp < 1 then return end
 local h = getHRP()
 if not h then return end
+if not friendPos then sw.sub.Text = "Posisi teman belum diset" return end
 lastTp = os.clock()
 if activeTween then activeTween:Cancel() activeTween = nil end
 if not backCF or (h.Position - friendPos).Magnitude > 40 then backCF = h.CFrame end
@@ -2390,7 +2421,8 @@ end)
 end
 local function toSafe(why)
 if friendOn then toFriend(why) return end
-if not eggSafe or not safePos then return end
+if not eggSafe then return end
+if not safePos then sw.sub.Text = "Zona Aman belum diset (tekan SET ZONA AMAN)" return end
 if os.clock() - lastTp < 1 then return end
 local h = getHRP()
 if not h then return end
@@ -2452,6 +2484,42 @@ makeToggle(pages["EGG"], "Balik ke tempat ambil telur", "Kembali otomatis setela
 backOn = v
 backJob = backJob + 1
 end)
+local setSafe = button("SET ZONA AMAN = POSISI SAAT INI", 11, pages["EGG"], {
+Size = UDim2.new(1, -2, 0, 30), BackgroundColor3 = C.panel2, LayoutOrder = 7,
+})
+corner(setSafe, 8)
+setSafe.MouseButton1Click:Connect(function()
+local h = getHRP()
+if not h then sw.sub.Text = "Karakter belum siap" return end
+safePos = h.Position + Vector3.new(0, 3, 0)
+sw.sub.Text = "Zona Aman tersimpan"
+pcall(function() Settings.toast("Zona Aman tersimpan", true) end)
+end)
+local setFriend = button("SET POSISI TEMAN = POSISI SAAT INI", 11, pages["EGG"], {
+Size = UDim2.new(1, -2, 0, 30), BackgroundColor3 = C.panel2, LayoutOrder = 8,
+})
+corner(setFriend, 8)
+setFriend.MouseButton1Click:Connect(function()
+local h = getHRP()
+if not h then sw.sub.Text = "Karakter belum siap" return end
+friendPos = h.Position + Vector3.new(0, 3, 0)
+sw.sub.Text = "Posisi teman tersimpan"
+pcall(function() Settings.toast("Posisi teman tersimpan", true) end)
+end)
+Settings.extra.safeZones = {
+get = function()
+return {
+safe = safePos and {safePos.X, safePos.Y, safePos.Z} or nil,
+friend = friendPos and {friendPos.X, friendPos.Y, friendPos.Z} or nil,
+}
+end,
+set = function(t)
+t = t or {}
+safePos = t.safe and Vector3.new(t.safe[1], t.safe[2], t.safe[3]) or nil
+friendPos = t.friend and Vector3.new(t.friend[1], t.friend[2], t.friend[3]) or nil
+end,
+def = {},
+}
 makeNumberRow(pages["EGG"], "JEDA BALIK (detik)", backDelay, 5, function(n) backDelay = math.clamp(n, 0.5, 60) end)
 makeOpenCard(pages["EGG"], "Teleport Area", "Savana, Zona Aman & posisi simpanan", 1, sw)
 local prev = sw.onChange
