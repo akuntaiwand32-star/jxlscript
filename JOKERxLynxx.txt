@@ -1922,12 +1922,13 @@ if not h then return end
 if savePos then savedCF = h.CFrame end
 h.CFrame = CFrame.new(pos + Vector3.new(0, 4, 0))
 end
-local function goTo(pos, pp, part)
+local function goTo(pos, pp, part, onOk)
 if not autoSteal then plainTp(pos) return end
 task.spawn(function()
 local ok = stealNow(pp, part, true)
 if ok then
 toast("Steal berhasil (tanpa teleport)", true)
+if onOk then onOk() end
 return
 end
 if not fallbackTp then
@@ -1943,6 +1944,7 @@ if returnAfter and savedCF then
 local h2 = getHRP()
 if h2 then h2.CFrame = savedCF end
 end
+if ok2 and onOk then onOk() end
 toast(ok2 and "Steal berhasil (setelah teleport)" or "Steal belum terdeteksi berhasil", true)
 end)
 end
@@ -1958,8 +1960,41 @@ end)
 tb.MouseButton1Click:Connect(function()
 if lastPos then plainTp(lastPos) else toast("Belum ada telur yang terdeteksi", true) end
 end)
-local rows, eggN = {}, 0
+local groups, gorder, eggN = {}, {}, 0
+local function alive(e)
+if e.done or not e.part.Parent then return false end
+local ch = e.part:FindFirstAncestorOfClass("Model")
+local o = e.part
+while o and o ~= workspace do
+if o:IsA("Model") and game:GetService("Players"):GetPlayerFromCharacter(o) then return false end
+if o:IsA("Backpack") then return false end
+o = o.Parent
+end
+return true
+end
+local function refreshGroup(g)
+local live = {}
+for _, e in ipairs(g.entries) do if alive(e) then table.insert(live, e) end end
+g.entries = live
+if #live == 0 then
+g.card:Destroy()
+groups[g.key] = nil
+for i, k in ipairs(gorder) do if k == g.key then table.remove(gorder, i) break end end
+return
+end
+local e = live[1]
+local p0 = e.part.Position
+g.name.Text = g.nm .. (#live > 1 and ("  x" .. #live) or "") .. (g.r and (" [" .. g.r .. "]") or "")
+g.sub.Text = (e.val and (e.val .. "  ") or "") .. string.format("(%.0f, %.0f, %.0f)", p0.X, p0.Y, p0.Z)
+end
 local function addRow(nm, part, r, val, pp)
+local key = nm .. "|" .. tostring(r)
+local g = groups[key]
+if g then
+table.insert(g.entries, {part = part, pp = pp, val = val})
+refreshGroup(g)
+return
+end
 eggN = eggN + 1
 if eggN > 380 then eggN = 380 end
 local col = tierColor(r)
@@ -1968,29 +2003,34 @@ corner(card, 10)
 stroke(card, col, 1, 0.45)
 local bar = make("Frame", {Size = UDim2.new(0, 4, 1, -12), Position = UDim2.new(0, 6, 0, 6), BackgroundColor3 = col, BorderSizePixel = 0}, card)
 corner(bar, 2)
-label(nm .. (r and (" [" .. r .. "]") or ""), 12, col, card, {Size = UDim2.new(1, -76, 0, 16), Position = UDim2.new(0, 18, 0, 4), TextTruncate = Enum.TextTruncate.AtEnd})
-local p0 = part.Position
-label((val and (val .. "  ") or "") .. string.format("(%.0f, %.0f, %.0f)", p0.X, p0.Y, p0.Z), 10, C.muted, card, {Font = Enum.Font.Gotham, Size = UDim2.new(1, -76, 0, 14), Position = UDim2.new(0, 18, 0, 24), TextTruncate = Enum.TextTruncate.AtEnd})
+local nameL = label(nm, 12, col, card, {Size = UDim2.new(1, -76, 0, 16), Position = UDim2.new(0, 18, 0, 4), TextTruncate = Enum.TextTruncate.AtEnd})
+local subL = label("", 10, C.muted, card, {Font = Enum.Font.Gotham, Size = UDim2.new(1, -76, 0, 14), Position = UDim2.new(0, 18, 0, 24), TextTruncate = Enum.TextTruncate.AtEnd})
 local plus = button("+", 20, card, {Size = UDim2.new(0, 40, 0, 34), Position = UDim2.new(1, -50, 0.5, -17), BackgroundColor3 = C.blue})
 corner(plus, 10)
+g = {key = key, nm = nm, r = r, card = card, name = nameL, sub = subL, entries = {{part = part, pp = pp, val = val}}}
+groups[key] = g
+table.insert(gorder, key)
 plus.MouseButton1Click:Connect(function()
-local pos = part.Parent and part.Position or p0
-goTo(pos, pp, part)
+refreshGroup(g)
+local e = g.entries[1]
+if not e then return end
+goTo(e.part.Position, e.pp, e.part, function()
+e.done = true
+if groups[g.key] then refreshGroup(g) end
 end)
-table.insert(rows, {card = card, part = part})
-while #rows > 25 do
-local old = table.remove(rows, 1)
-old.card:Destroy()
+end)
+refreshGroup(g)
+while #gorder > 25 do
+local old = groups[gorder[1]]
+table.remove(gorder, 1)
+if old then old.card:Destroy() groups[old.key] = nil end
 end
 end
 task.spawn(function()
 while gui.Parent do
 task.wait(2)
-for i = #rows, 1, -1 do
-if not rows[i].part.Parent then
-rows[i].card:Destroy()
-table.remove(rows, i)
-end
+for _, k in ipairs({table.unpack(gorder)}) do
+if groups[k] then pcall(refreshGroup, groups[k]) end
 end
 end
 end)
