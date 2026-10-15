@@ -2702,17 +2702,17 @@ end
 makeOpenCard(pages["FITUR"], "Radar Area", "Peta 2D semua area, atau per area", 36, sw)
 end)
 secure("PROPS", function()
-local W, H = 360, 400
+local W, H = 290, 290
 local sw = makeSubWindow("PROPERTIES  -  AKUNMU", "", W, H, 0)
 sw.content.Visible = false
 sw.keepOnHide = true
 local TABS = {"PLAYER", "KARAKTER", "HUMANOID", "ROOT", "HEAD"}
 local tabIdx, query = 1, ""
 local PROPS = {
-Player = {"DisplayName", "Name", "UserId", "AccountAge", "MembershipType", "Team", "TeamColor", "Neutral", "CameraMode", "CameraMinZoomDistance", "CameraMaxZoomDistance", "HealthDisplayDistance", "NameDisplayDistance", "CharacterAppearanceId", "RespawnLocation"},
-Model = {"Name", "PrimaryPart", "WorldPivot"},
-Humanoid = {"DisplayName", "Health", "MaxHealth", "WalkSpeed", "JumpPower", "JumpHeight", "UseJumpPower", "HipHeight", "AutoRotate", "Sit", "PlatformStand", "RigType", "CameraOffset", "DisplayDistanceType", "MaxSlopeAngle", "BreakJointsOnDeath", "RequiresNeck", "AutoJumpEnabled"},
-BasePart = {"Name", "Anchored", "CanCollide", "CanTouch", "CanQuery", "Massless", "Transparency", "Reflectance", "Size", "Position", "Orientation", "Color", "Material", "CastShadow", "Locked", "AssemblyLinearVelocity", "AssemblyAngularVelocity"},
+Player = {"DisplayName", "UserId", "AccountAge"},
+Model = {},
+Humanoid = {"Health", "MaxHealth", "WalkSpeed", "JumpPower", "HipHeight"},
+BasePart = {"Anchored", "CanCollide", "Transparency", "Size", "Position"},
 }
 local function target(i)
 local ch = player.Character
@@ -2730,16 +2730,16 @@ if inst:IsA("BasePart") then return PROPS.BasePart end
 return PROPS.Model
 end
 local tabBtns = {}
-local tabBar = make("Frame", {Size = UDim2.new(1, -24, 0, 28), Position = UDim2.new(0, 12, 0, 52), BackgroundTransparency = 1}, sw.win)
+local tabBar = make("Frame", {Size = UDim2.new(1, -20, 0, 24), Position = UDim2.new(0, 10, 0, 48), BackgroundTransparency = 1}, sw.win)
 make("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder}, tabBar)
 local search = inputBox("", sw.win, {
-Size = UDim2.new(1, -24, 0, 28), Position = UDim2.new(0, 12, 0, 86), TextSize = 12,
+Size = UDim2.new(1, -20, 0, 24), Position = UDim2.new(0, 10, 0, 76), TextSize = 11,
 PlaceholderText = "cari properti...", PlaceholderColor3 = C.muted,
 TextXAlignment = Enum.TextXAlignment.Left,
 })
-local info = label("", 10, C.muted, sw.win, {Font = Enum.Font.GothamBold, Size = UDim2.new(1, -24, 0, 14), Position = UDim2.new(0, 14, 0, 118)})
+local info = label("", 10, C.muted, sw.win, {Font = Enum.Font.GothamBold, Size = UDim2.new(1, -20, 0, 12), Position = UDim2.new(0, 12, 0, 103)})
 local list = make("ScrollingFrame", {
-Size = UDim2.new(1, -20, 1, -(138 + 10)), Position = UDim2.new(0, 10, 0, 138),
+Size = UDim2.new(1, -16, 1, -(120 + 8)), Position = UDim2.new(0, 8, 0, 120),
 BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 4,
 CanvasSize = UDim2.new(0, 0, 0, 0), AutomaticCanvasSize = Enum.AutomaticSize.Y,
 }, sw.win)
@@ -2796,13 +2796,13 @@ table.clear(rows)
 end
 local function addRow(kind, inst, key, v, order)
 local t = typeof(v)
-local card = make("Frame", {Size = UDim2.new(1, -6, 0, 44), BackgroundColor3 = C.panel, BackgroundTransparency = 0.25, LayoutOrder = order}, list)
+local card = make("Frame", {Size = UDim2.new(1, -6, 0, 34), BackgroundColor3 = C.panel, BackgroundTransparency = 0.25, LayoutOrder = order}, list)
 corner(card, 10)
 stroke(card, C.purple, 1, 0.6)
-label(key, 12, C.text, card, {Size = UDim2.new(0.42, -10, 1, 0), Position = UDim2.new(0, 10, 0, 0), TextTruncate = Enum.TextTruncate.AtEnd})
+label(key, 11, C.text, card, {Size = UDim2.new(0.45, -10, 1, 0), Position = UDim2.new(0, 10, 0, 0), TextTruncate = Enum.TextTruncate.AtEnd})
 local r = {kind = kind, inst = inst, key = key, card = card, vtype = t}
 if t == "boolean" then
-local b = button("", 12, card, {Size = UDim2.new(0.58, -10, 1, -10), Position = UDim2.new(0.42, 0, 0, 5), BackgroundColor3 = C.panel2})
+local b = button("", 12, card, {Size = UDim2.new(0.55, -8, 1, -8), Position = UDim2.new(0.45, 0, 0, 4), BackgroundColor3 = C.panel2})
 corner(b, 8)
 setBool(b, v)
 b.MouseButton1Click:Connect(function()
@@ -2813,10 +2813,12 @@ r.btn = b
 else
 local editable = (t == "number" or t == "string" or t == "Vector3" or t == "Color3")
 local box = inputBox(fmt(v), card, {
-Size = UDim2.new(0.58, -10, 1, -10), Position = UDim2.new(0.42, 0, 0, 5), TextSize = 12,
-TextXAlignment = Enum.TextXAlignment.Left, TextEditable = editable,
+Size = UDim2.new(0.55, -8, 1, -8), Position = UDim2.new(0.45, 0, 0, 4), TextSize = 12,
+TextXAlignment = Enum.TextXAlignment.Left, TextEditable = editable, TextSize = 11,
 TextTruncate = Enum.TextTruncate.AtEnd, ClearTextOnFocus = false,
 })
+local bs = box:FindFirstChildOfClass("UIStroke")
+if bs then bs.Thickness = 1 end
 box.FocusLost:Connect(function()
 if not editable then box.Text = fmt(readRow(r)) return end
 local old = readRow(r)
@@ -2844,12 +2846,6 @@ local ok, v = pcall(function() return inst[k] end)
 if ok and v ~= nil then table.insert(items, {"prop", inst, k, v}) end
 end
 for k, v in pairs(inst:GetAttributes()) do table.insert(items, {"attr", inst, tostring(k), v}) end
-for _, d in ipairs(inst:GetDescendants()) do
-if d:IsA("ValueBase") and #items < 300 then
-local ok, v = pcall(function() return d.Value end)
-if ok and v ~= nil then table.insert(items, {"value", d, d.Name, v}) end
-end
-end
 table.sort(items, function(a, b) return a[3]:lower() < b[3]:lower() end)
 local q = query:lower()
 local n = 0
@@ -2862,7 +2858,7 @@ end
 info.Text = TABS[tabIdx] .. "  •  " .. inst.ClassName .. "  •  " .. n .. " properti"
 end
 for i, name in ipairs(TABS) do
-local b = button(name, 10, tabBar, {Size = UDim2.new(1 / #TABS, -4, 1, 0), BackgroundColor3 = C.panel2, LayoutOrder = i})
+local b = button(name, 8, tabBar, {Size = UDim2.new(1 / #TABS, -4, 1, 0), BackgroundColor3 = C.panel2, LayoutOrder = i})
 corner(b, 8)
 b.MouseButton1Click:Connect(function() tabIdx = i rebuild() end)
 tabBtns[i] = b
@@ -2893,7 +2889,7 @@ end)
 end
 end
 track(player.CharacterAdded:Connect(function() task.delay(1, function() if sw.open then rebuild() end end) end))
-makeOpenCard(pages["FITUR"], "Properti Akun", "Lihat & ubah properti: Player, Karakter, Humanoid", 37, sw)
+makeOpenCard(pages["FITUR"], "Properti Akun", "Lihat & ubah nilai akun / karakter", 37, sw)
 end)
 secure("SERVER", function()
 local sw = makeSubWindow("SERVER HOP", "Pindah / refresh / rejoin", 240, 300)
