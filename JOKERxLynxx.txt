@@ -425,7 +425,7 @@ end)
 end
 end
 end
-for idx, t in ipairs({{"EGG", "EGG"}, {"TP / SP", "TPSP"}, {"FITUR", "FITUR"}, {"PLAYER", "PLAYER"}, {"AVATAR", "AVATAR"}, {"MISC", "MISC"}, {"ABYSAL", "ABYSAL"}}) do
+for idx, t in ipairs({{"EGG", "EGG"}, {"NOTIF", "NOTIF"}, {"TP / SP", "TPSP"}, {"FITUR", "FITUR"}, {"PLAYER", "PLAYER"}, {"AVATAR", "AVATAR"}, {"MISC", "MISC"}, {"ABYSAL", "ABYSAL"}}) do
 newPage(t[2])
 local b = button(t[1], 11, tabBar, {
 Size = UDim2.new(0, 68, 1, 0), BackgroundColor3 = Color3.new(1, 1, 1),
@@ -2991,6 +2991,127 @@ task.spawn(function()
 while gui.Parent do
 task.wait(3)
 pcall(upd)
+end
+end)
+end)
+secure("NOTIFLOG", function()
+local page = pages["NOTIF"]
+local MAXN = 40
+local on = true
+local n = 0
+local entries = {}
+local lastText, lastAt = "", 0
+local changes = setmetatable({}, {__mode = "k"})
+local TextChatService
+pcall(function() TextChatService = game:GetService("TextChatService") end)
+makeToggle(page, "Pencatat Notifikasi", "Catat teks notifikasi yang muncul di game", 1, true, function(v) on = v end)
+local clearBtn = button("HAPUS SEMUA TEKS", 12, page, {Size = UDim2.new(1, -6, 0, 32), BackgroundColor3 = C.red, LayoutOrder = 2})
+corner(clearBtn, 10)
+local hint = label("Ketuk satu teks untuk menghapusnya.", 10, C.muted, page, {Font = Enum.Font.Gotham, Size = UDim2.new(1, -6, 0, 14), LayoutOrder = 3})
+local function colorFor(t)
+local l = t:lower()
+if l:find("berhasil", 1, true) or l:find("success", 1, true) or l:find("dapat", 1, true) or l:find("got", 1, true) then return Color3.fromRGB(60, 220, 120) end
+if l:find("gagal", 1, true) or l:find("curi", 1, true) or l:find("steal", 1, true) or l:find("stolen", 1, true) or l:find("tidak", 1, true) or l:find("fail", 1, true) then return Color3.fromRGB(255, 80, 80) end
+if l:find("telur", 1, true) or l:find("egg", 1, true) then return Color3.fromRGB(255, 200, 60) end
+return Color3.fromRGB(80, 160, 255)
+end
+local function removeEntry(e)
+for i, x in ipairs(entries) do
+if x == e then table.remove(entries, i) break end
+end
+e:Destroy()
+end
+local function addLog(text)
+if not on then return end
+text = text:gsub("<[^>]+>", ""):gsub("%s+", " "):match("^%s*(.-)%s*$")
+if #text < 5 or #text > 160 then return end
+if not text:find("%a%a%a") then return end
+if text:match("^[%d%.,%s%$%%/:KMBTQkmbtq%+%-xX]+$") then return end
+local now = os.clock()
+if text == lastText and now - lastAt < 3 then return end
+lastText, lastAt = text, now
+if #text > 80 then text = text:sub(1, 77) .. "..." end
+n = n + 1
+local col = colorFor(text)
+local card = make("TextButton", {
+Text = "", AutoButtonColor = false, Size = UDim2.new(1, -6, 0, 42),
+BackgroundColor3 = C.panel, BackgroundTransparency = 0.2, LayoutOrder = 100000 - n,
+}, page)
+corner(card, 10)
+stroke(card, col, 1, 0.5)
+local bar = make("Frame", {Size = UDim2.new(0, 4, 1, -12), Position = UDim2.new(0, 6, 0, 6), BackgroundColor3 = col, BorderSizePixel = 0}, card)
+corner(bar, 2)
+label(os.date("%H:%M:%S"), 9, C.muted, card, {Font = Enum.Font.Gotham, Size = UDim2.new(1, -24, 0, 11), Position = UDim2.new(0, 18, 0, 4)})
+label(text, 12, C.text, card, {Size = UDim2.new(1, -24, 0, 22), Position = UDim2.new(0, 18, 0, 16), TextWrapped = true, TextTruncate = Enum.TextTruncate.AtEnd, TextYAlignment = Enum.TextYAlignment.Top})
+card.MouseButton1Click:Connect(function() removeEntry(card) end)
+table.insert(entries, 1, card)
+while #entries > MAXN do
+local old = table.remove(entries)
+old:Destroy()
+end
+end
+clearBtn.MouseButton1Click:Connect(function()
+for _, e in ipairs(entries) do e:Destroy() end
+table.clear(entries)
+end)
+local pg = player:FindFirstChildOfClass("PlayerGui")
+local function mine(o)
+local a = o
+while a and a ~= pg and a ~= game do
+if a == gui or (a:IsA("ScreenGui") and a.Name:find("^JxL")) or a.Name:find("^JxL") then return true end
+a = a.Parent
+end
+return false
+end
+local hooked = setmetatable({}, {__mode = "k"})
+local function hook(o)
+if hooked[o] or not (o:IsA("TextLabel") or o:IsA("TextButton")) then return end
+hooked[o] = true
+local function changed()
+if not on or not o.Visible or o.Text == "" then return end
+local now = os.clock()
+local c = changes[o]
+if not c then c = {} changes[o] = c end
+table.insert(c, now)
+while c[1] and now - c[1] > 5 do table.remove(c, 1) end
+if #c > 3 then return end -- angka HUD yang terus berubah: abaikan
+if mine(o) then return end
+task.defer(function()
+if o.Parent and o.Visible then addLog(o.Text) end
+end)
+end
+track(o:GetPropertyChangedSignal("Text"):Connect(changed))
+end
+if pg then
+track(pg.DescendantAdded:Connect(function(o)
+if o:IsA("TextLabel") or o:IsA("TextButton") then
+hook(o)
+if o.Text ~= "" and not mine(o) then
+task.delay(0.15, function()
+if on and o.Parent and o.Visible and (o.Text ~= "") then
+local c = changes[o]
+if not c then c = {} changes[o] = c end
+table.insert(c, os.clock())
+if #c <= 3 then addLog(o.Text) end
+end
+end)
+end
+end
+end))
+task.spawn(function()
+local k = 0
+for _, o in ipairs(pg:GetDescendants()) do
+hook(o)
+k = k + 1
+if k % 300 == 0 then task.wait() end
+end
+end)
+end
+pcall(function()
+if TextChatService then
+track(TextChatService.MessageReceived:Connect(function(m)
+if m.TextSource == nil then addLog(m.Text or "") end
+end))
 end
 end)
 end)
