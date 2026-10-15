@@ -1840,18 +1840,10 @@ end
 end
 end
 end)
-local function check(pp)
-if not on or seen[pp] then return end
-local at = ((pp.ActionText or "") .. " " .. (pp.ObjectText or "")):lower()
-if not (at:find("curi", 1, true) or at:find("steal", 1, true)) then return end
-seen[pp] = true
-task.wait(0.6)
-if not on or not pp.Parent then return end
-local m = pp:FindFirstAncestorOfClass("Model") or pp.Parent
-if not m or m.Name:lower():find("debris", 1, true) then return end
+local function process(m, pp)
 local r = rarityOf(m)
 local val, num = valueOf(m)
-if r and not lowTier[r:lower()] then
+if r then
 local d = tiers[r]
 if not d then d = {n = 0, sum = 0} tiers[r] = d end
 if num then d.n = d.n + 1 d.sum = d.sum + num end
@@ -1865,18 +1857,63 @@ lastModel, lastPos, lastPP = m, part.Position, pp
 addRow(m, part, r, val, pp)
 toast(string.format("TELUR %s (%s)%s muncul", m.Name, r or "?", val and (" " .. val) or ""))
 end
+local function check(pp)
+if not on or seen[pp] then return end
+local at = ((pp.ActionText or "") .. " " .. (pp.ObjectText or "")):lower()
+if not (at:find("curi", 1, true) or at:find("steal", 1, true)) then return end
+seen[pp] = true
+task.wait(0.6)
+if not on or not pp.Parent then return end
+local m = pp:FindFirstAncestorOfClass("Model") or pp.Parent
+if not m or m.Name:lower():find("debris", 1, true) then return end
+if seen[m] then return end
+seen[m] = true
+process(m, pp)
+end
+local function checkModel(m)
+if not on or seen[m] then return end
+local nm = m.Name:lower()
+if not (nm:find("egg", 1, true) or nm:find("telur", 1, true)) or nm:find("debris", 1, true) then return end
+local hasR = false
+for k in pairs(m:GetAttributes()) do
+if tostring(k):lower():find("rarity", 1, true) then hasR = true break end
+end
+if not hasR then return end
+seen[m] = true
+process(m, m:FindFirstChildWhichIsA("ProximityPrompt", true))
+end
 local function scan()
 local n = 0
 for _, o in ipairs(workspace:GetDescendants()) do
 if not on then return end
-if o:IsA("ProximityPrompt") then pcall(check, o) end
+if o:IsA("ProximityPrompt") then pcall(check, o)
+elseif o:IsA("Model") then pcall(checkModel, o) end
 n = n + 1
 if n % 400 == 0 then task.wait() end
 end
 end
 Settings.eggScan = scan
+task.spawn(function()
+while gui.Parent do
+task.wait(15)
+if on then
+if workspace.StreamingEnabled then
+pcall(function() if Settings.detectAreas then Settings.detectAreas() end end)
+local list = {}
+pcall(function() list = Settings.areaList() end)
+for i, pos in ipairs(list) do
+if not on or i > 8 then break end
+pcall(function() player:RequestStreamAroundAsync(pos, 2) end)
+task.wait(2.5)
+end
+end
+pcall(scan)
+end
+end
+end)
 track(workspace.DescendantAdded:Connect(function(o)
-if on and o:IsA("ProximityPrompt") then task.spawn(pcall, check, o) end
+if on and o:IsA("ProximityPrompt") then task.spawn(pcall, check, o)
+elseif on and o:IsA("Model") then task.delay(0.8, function() pcall(checkModel, o) end) end
 end))
 rb.MouseButton1Click:Connect(function()
 local opts = options()
@@ -2788,6 +2825,12 @@ end
 if areaIdx and areaIdx > #AREAS then areaIdx = 1 end
 end
 local S = 236
+Settings.detectAreas = detectAreas
+Settings.areaList = function()
+local t = {}
+for _, a in ipairs(AREAS) do table.insert(t, a[2]) end
+return t
+end
 local mapF = make("Frame", {
 Size = UDim2.new(0, S, 0, S), Position = UDim2.new(0, 12, 0, 50),
 BackgroundColor3 = Color3.fromRGB(8, 8, 12), BackgroundTransparency = 0.1, ClipsDescendants = true,
