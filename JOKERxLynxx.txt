@@ -1857,6 +1857,7 @@ if not d then d = {n = 0, sum = 0} tiers[r] = d end
 if num then d.n = d.n + 1 d.sum = d.sum + num end
 rb.Text = "MINIMAL TIER: " .. minLabel() .. " (ketuk ganti)"
 end
+if r and hideTier[r:lower()] then return end -- tier umum tidak pernah ditampilkan
 if not passes(r) then return end
 local part = m:IsA("Model") and (m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart", true)) or m
 if not (part and part:IsA("BasePart")) then return end
