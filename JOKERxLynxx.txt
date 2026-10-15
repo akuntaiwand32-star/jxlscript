@@ -165,6 +165,14 @@ BackgroundColor3 = C.panel2, AutoButtonColor = true,
 for k, v in pairs(props or {}) do b[k] = v end
 regText(b)
 b.Parent = parent
+if props and props.Size and props.Size.X.Scale == 1 then
+local st = Instance.new("UIStroke")
+st.Color = Color3.fromRGB(124, 77, 255)
+st.Thickness = 1
+st.Transparency = 0.55
+st.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+st.Parent = b
+end
 b.MouseButton1Click:Connect(function() playClick(1) end)
 return b
 end
@@ -2890,6 +2898,43 @@ end
 end
 track(player.CharacterAdded:Connect(function() task.delay(1, function() if sw.open then rebuild() end end) end))
 makeOpenCard(pages["FITUR"], "Properti Akun", "Lihat & ubah nilai akun / karakter", 37, sw)
+end)
+secure("PROFILE", function()
+local page = pages["FITUR"]
+local card = make("Frame", {Size = UDim2.new(1, -6, 0, 76), BackgroundColor3 = C.panel, BackgroundTransparency = 0.2, LayoutOrder = 0}, page)
+corner(card, 12)
+stroke(card, C.purple, 1, 0.5)
+local ring = make("Frame", {Size = UDim2.new(0, 52, 0, 52), Position = UDim2.new(0, 10, 0.5, -26), BackgroundColor3 = C.panel2}, card)
+corner(ring, 26)
+local rs = make("UIStroke", {Thickness = 3, ApplyStrokeMode = Enum.ApplyStrokeMode.Border}, ring)
+make("UIGradient", {Color = ColorSequence.new({
+ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 60, 60)),
+ColorSequenceKeypoint.new(0.25, Color3.fromRGB(255, 220, 60)),
+ColorSequenceKeypoint.new(0.5, Color3.fromRGB(60, 220, 120)),
+ColorSequenceKeypoint.new(0.75, Color3.fromRGB(60, 140, 255)),
+ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 60, 60)),
+})}, rs)
+local img = make("ImageLabel", {Size = UDim2.new(1, -6, 1, -6), Position = UDim2.new(0, 3, 0, 3), BackgroundTransparency = 1}, ring)
+corner(img, 24)
+task.spawn(function()
+local ok, url = pcall(function()
+return Players:GetUserThumbnailAsync(player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
+end)
+if ok and url then img.Image = url end
+end)
+label(player.DisplayName, 15, C.text, card, {Size = UDim2.new(1, -78, 0, 18), Position = UDim2.new(0, 70, 0, 6), TextTruncate = Enum.TextTruncate.AtEnd})
+label("@" .. player.Name .. "  |  ID: " .. player.UserId, 10, C.muted, card, {Font = Enum.Font.Gotham, Size = UDim2.new(1, -78, 0, 14), Position = UDim2.new(0, 70, 0, 26), TextTruncate = Enum.TextTruncate.AtEnd})
+local prem = player.MembershipType == Enum.MembershipType.Premium and "Premium" or "Non-Premium"
+label("Umur akun: " .. player.AccountAge .. " hari  |  " .. prem, 10, C.muted, card, {Font = Enum.Font.Gotham, Size = UDim2.new(1, -78, 0, 14), Position = UDim2.new(0, 70, 0, 41), TextTruncate = Enum.TextTruncate.AtEnd})
+local srv = label("", 10, C.muted, card, {Font = Enum.Font.Gotham, Size = UDim2.new(1, -78, 0, 14), Position = UDim2.new(0, 70, 0, 56), TextTruncate = Enum.TextTruncate.AtEnd})
+local function upd() srv.Text = "Server: " .. #Players:GetPlayers() .. "/" .. Players.MaxPlayers .. " pemain" end
+upd()
+task.spawn(function()
+while gui.Parent do
+task.wait(3)
+pcall(upd)
+end
+end)
 end)
 secure("SERVER", function()
 local sw = makeSubWindow("SERVER HOP", "Pindah / refresh / rejoin", 240, 300)
