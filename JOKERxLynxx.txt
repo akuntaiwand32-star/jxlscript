@@ -181,13 +181,14 @@ b.Parent = parent
 return b
 end
 local Settings = {toggles = {}, nums = {}, extra = {}}
-local noSaveToggle = {["Auto Farm Kristal"] = true, ["Fly"] = true}
+local noSaveToggle = {["Auto Farm Kristal"] = true, ["Fly"] = true, ["Server Hop (min 1 pemain)"] = true}
 local function makeToggle(page, title, desc, order, initial, onChange)
 local card = make("Frame", {
 Size = UDim2.new(1, -6, 0, 46), BackgroundColor3 = C.panel,
 BackgroundTransparency = 0.2, LayoutOrder = order,
 }, page)
 corner(card, 10)
+stroke(card, C.purple, 1, 0.55)
 label(title, 13, C.text, card, {Size = UDim2.new(1, -70, 0, 20), Position = UDim2.new(0, 12, 0, 5)})
 label(desc, 10, C.muted, card, {
 Font = Enum.Font.Gotham, Size = UDim2.new(1, -70, 0, 16), Position = UDim2.new(0, 12, 0, 25),
@@ -229,10 +230,12 @@ end
 return set, visual
 end
 local function makeNumberRow(page, title, default, order, onChange)
-local row = make("Frame", {Size = UDim2.new(1, -6, 0, 34), BackgroundTransparency = 1, LayoutOrder = order}, page)
-label(title, 11, C.muted, row, {Size = UDim2.new(0.55, 0, 1, 0)})
+local row = make("Frame", {Size = UDim2.new(1, -6, 0, 38), BackgroundColor3 = C.panel, BackgroundTransparency = 0.35, LayoutOrder = order}, page)
+corner(row, 10)
+stroke(row, C.purple, 1, 0.65)
+label(title, 11, C.muted, row, {Size = UDim2.new(0.55, -12, 1, 0), Position = UDim2.new(0, 12, 0, 0)})
 local box = inputBox(tostring(default), row, {
-Size = UDim2.new(0.45, 0, 1, -4), Position = UDim2.new(0.55, 0, 0, 2),
+Size = UDim2.new(0.45, -8, 1, -8), Position = UDim2.new(0.55, 0, 0, 4),
 TextXAlignment = Enum.TextXAlignment.Center,
 })
 box.FocusLost:Connect(function()
@@ -498,14 +501,14 @@ end
 place()
 end
 sw.open = v
-win.Visible = v and main.Visible
+win.Visible = v and (sw.keepOnHide or main.Visible)
 if sw.onChange then sw.onChange(v) end
 end
 sw.close = function() if sw.open then sw.setOpen(false) end end
 table.insert(subWinClosers, sw.close)
 closeBtn.MouseButton1Click:Connect(function() sw.setOpen(false) end)
 track(main:GetPropertyChangedSignal("Visible"):Connect(function()
-win.Visible = sw.open and main.Visible
+win.Visible = sw.open and (sw.keepOnHide or main.Visible)
 end))
 return sw
 end
@@ -515,6 +518,7 @@ Text = "", Size = UDim2.new(1, -6, 0, 46), BackgroundColor3 = C.panel,
 BackgroundTransparency = 0.2, AutoButtonColor = true, LayoutOrder = order,
 }, page)
 corner(card, 10)
+stroke(card, C.purple, 1, 0.55)
 label(title, 13, C.text, card, {Size = UDim2.new(1, -50, 0, 20), Position = UDim2.new(0, 12, 0, 5)})
 label(desc, 10, C.muted, card, {
 Font = Enum.Font.Gotham, Size = UDim2.new(1, -50, 0, 16), Position = UDim2.new(0, 12, 0, 25),
@@ -2524,6 +2528,7 @@ end)
 secure("AREAMAP", function()
 local sw = makeSubWindow("RADAR AREA", "Peta 2D semua area", 260, 372, 0)
 sw.content.Visible = false
+sw.keepOnHide = true -- tetap tampil walau menu utama disembunyikan lewat gelembung
 local AREAS = {
 {"Zona Aman", Vector3.new(3.07, 1.00, -36.10), Color3.fromRGB(60, 220, 120)},
 {"Teman", Vector3.new(-0.13, 4.87, -139.63), Color3.fromRGB(80, 160, 255)},
@@ -2612,8 +2617,10 @@ return math.clamp(px, 4, S - 4), math.clamp(py, 4, S - 4)
 end
 local function inBand(v) return mode == 1 or math.abs(v.Y - ymid) < 400 end
 for i, a in ipairs(AREAS) do
+if inBand(a[2]) then
 local px, py = pos(a[2])
 dot(px, py, a[3], (mode == 2 and i == areaIdx) and 12 or 9, a[1])
+end
 end
 for pp, part in pairs(eggs) do
 if not pp.Parent or not part.Parent then eggs[pp] = nil
@@ -2693,6 +2700,200 @@ end)
 end
 end
 makeOpenCard(pages["FITUR"], "Radar Area", "Peta 2D semua area, atau per area", 36, sw)
+end)
+secure("PROPS", function()
+local W, H = 360, 400
+local sw = makeSubWindow("PROPERTIES  -  AKUNMU", "", W, H, 0)
+sw.content.Visible = false
+sw.keepOnHide = true
+local TABS = {"PLAYER", "KARAKTER", "HUMANOID", "ROOT", "HEAD"}
+local tabIdx, query = 1, ""
+local PROPS = {
+Player = {"DisplayName", "Name", "UserId", "AccountAge", "MembershipType", "Team", "TeamColor", "Neutral", "CameraMode", "CameraMinZoomDistance", "CameraMaxZoomDistance", "HealthDisplayDistance", "NameDisplayDistance", "CharacterAppearanceId", "RespawnLocation"},
+Model = {"Name", "PrimaryPart", "WorldPivot"},
+Humanoid = {"DisplayName", "Health", "MaxHealth", "WalkSpeed", "JumpPower", "JumpHeight", "UseJumpPower", "HipHeight", "AutoRotate", "Sit", "PlatformStand", "RigType", "CameraOffset", "DisplayDistanceType", "MaxSlopeAngle", "BreakJointsOnDeath", "RequiresNeck", "AutoJumpEnabled"},
+BasePart = {"Name", "Anchored", "CanCollide", "CanTouch", "CanQuery", "Massless", "Transparency", "Reflectance", "Size", "Position", "Orientation", "Color", "Material", "CastShadow", "Locked", "AssemblyLinearVelocity", "AssemblyAngularVelocity"},
+}
+local function target(i)
+local ch = player.Character
+if i == 1 then return player end
+if not ch then return nil end
+if i == 2 then return ch end
+if i == 3 then return ch:FindFirstChildOfClass("Humanoid") end
+if i == 4 then return ch:FindFirstChild("HumanoidRootPart") end
+return ch:FindFirstChild("Head")
+end
+local function propList(inst)
+if inst:IsA("Player") then return PROPS.Player end
+if inst:IsA("Humanoid") then return PROPS.Humanoid end
+if inst:IsA("BasePart") then return PROPS.BasePart end
+return PROPS.Model
+end
+local tabBtns = {}
+local tabBar = make("Frame", {Size = UDim2.new(1, -24, 0, 28), Position = UDim2.new(0, 12, 0, 52), BackgroundTransparency = 1}, sw.win)
+make("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder}, tabBar)
+local search = inputBox("", sw.win, {
+Size = UDim2.new(1, -24, 0, 28), Position = UDim2.new(0, 12, 0, 86), TextSize = 12,
+PlaceholderText = "cari properti...", PlaceholderColor3 = C.muted,
+TextXAlignment = Enum.TextXAlignment.Left,
+})
+local info = label("", 10, C.muted, sw.win, {Font = Enum.Font.GothamBold, Size = UDim2.new(1, -24, 0, 14), Position = UDim2.new(0, 14, 0, 118)})
+local list = make("ScrollingFrame", {
+Size = UDim2.new(1, -20, 1, -(138 + 10)), Position = UDim2.new(0, 10, 0, 138),
+BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 4,
+CanvasSize = UDim2.new(0, 0, 0, 0), AutomaticCanvasSize = Enum.AutomaticSize.Y,
+}, sw.win)
+make("UIListLayout", {Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder}, list)
+local rows = {} -- {kind, inst, key, box/btn, vtype}
+local function fmt(v)
+local t = typeof(v)
+if t == "number" then
+if v == math.floor(v) then return tostring(v) end
+return (string.format("%.3f", v):gsub("0+$", ""):gsub("%.$", ""))
+elseif t == "Vector3" then return string.format("%.2f, %.2f, %.2f", v.X, v.Y, v.Z)
+elseif t == "Vector2" then return string.format("%.2f, %.2f", v.X, v.Y)
+elseif t == "Color3" then return string.format("%d, %d, %d", v.R * 255, v.G * 255, v.B * 255)
+elseif t == "Instance" then return v:GetFullName()
+elseif t == "CFrame" then local p = v.Position return string.format("%.1f, %.1f, %.1f", p.X, p.Y, p.Z)
+end
+return tostring(v)
+end
+local function parseAs(old, txt)
+local t = typeof(old)
+if t == "number" then return tonumber(txt) end
+if t == "string" then return txt end
+if t == "Vector3" then
+local a, b, c = txt:match("^%s*(-?[%d%.]+)%s*,%s*(-?[%d%.]+)%s*,%s*(-?[%d%.]+)%s*$")
+if a then return Vector3.new(tonumber(a), tonumber(b), tonumber(c)) end
+elseif t == "Color3" then
+local a, b, c = txt:match("^%s*(%d+)%s*,%s*(%d+)%s*,%s*(%d+)%s*$")
+if a then return Color3.fromRGB(tonumber(a), tonumber(b), tonumber(c)) end
+end
+return nil
+end
+local function readRow(r)
+local ok, v
+if r.kind == "attr" then ok, v = true, r.inst:GetAttribute(r.key)
+elseif r.kind == "value" then ok, v = pcall(function() return r.inst.Value end)
+else ok, v = pcall(function() return r.inst[r.key] end) end
+if not ok then return nil end
+return v
+end
+local function writeRow(r, v)
+if v == nil then return end
+if r.kind == "attr" then pcall(function() r.inst:SetAttribute(r.key, v) end)
+elseif r.kind == "value" then pcall(function() r.inst.Value = v end)
+else pcall(function() r.inst[r.key] = v end) end
+end
+local function setBool(btn, v)
+btn.Text = v and "true" or "false"
+btn.BackgroundColor3 = v and Color3.fromRGB(52, 211, 153) or C.panel2
+btn.TextColor3 = v and Color3.fromRGB(8, 30, 22) or C.text
+end
+local function clearRows()
+for _, r in ipairs(rows) do r.card:Destroy() end
+table.clear(rows)
+end
+local function addRow(kind, inst, key, v, order)
+local t = typeof(v)
+local card = make("Frame", {Size = UDim2.new(1, -6, 0, 44), BackgroundColor3 = C.panel, BackgroundTransparency = 0.25, LayoutOrder = order}, list)
+corner(card, 10)
+stroke(card, C.purple, 1, 0.6)
+label(key, 12, C.text, card, {Size = UDim2.new(0.42, -10, 1, 0), Position = UDim2.new(0, 10, 0, 0), TextTruncate = Enum.TextTruncate.AtEnd})
+local r = {kind = kind, inst = inst, key = key, card = card, vtype = t}
+if t == "boolean" then
+local b = button("", 12, card, {Size = UDim2.new(0.58, -10, 1, -10), Position = UDim2.new(0.42, 0, 0, 5), BackgroundColor3 = C.panel2})
+corner(b, 8)
+setBool(b, v)
+b.MouseButton1Click:Connect(function()
+local cur = readRow(r)
+if type(cur) == "boolean" then writeRow(r, not cur) setBool(b, not cur) end
+end)
+r.btn = b
+else
+local editable = (t == "number" or t == "string" or t == "Vector3" or t == "Color3")
+local box = inputBox(fmt(v), card, {
+Size = UDim2.new(0.58, -10, 1, -10), Position = UDim2.new(0.42, 0, 0, 5), TextSize = 12,
+TextXAlignment = Enum.TextXAlignment.Left, TextEditable = editable,
+TextTruncate = Enum.TextTruncate.AtEnd, ClearTextOnFocus = false,
+})
+box.FocusLost:Connect(function()
+if not editable then box.Text = fmt(readRow(r)) return end
+local old = readRow(r)
+local nv = parseAs(old, box.Text)
+if nv ~= nil then writeRow(r, nv) end
+box.Text = fmt(readRow(r))
+end)
+r.box = box
+end
+table.insert(rows, r)
+end
+local function rebuild()
+clearRows()
+local inst = target(tabIdx)
+for i, b in ipairs(tabBtns) do
+b.BackgroundColor3 = (i == tabIdx) and C.purple or C.panel2
+end
+if not inst then
+info.Text = TABS[tabIdx] .. "  •  tidak tersedia (karakter belum ada)"
+return
+end
+local items = {}
+for _, k in ipairs(propList(inst)) do
+local ok, v = pcall(function() return inst[k] end)
+if ok and v ~= nil then table.insert(items, {"prop", inst, k, v}) end
+end
+for k, v in pairs(inst:GetAttributes()) do table.insert(items, {"attr", inst, tostring(k), v}) end
+for _, d in ipairs(inst:GetDescendants()) do
+if d:IsA("ValueBase") and #items < 300 then
+local ok, v = pcall(function() return d.Value end)
+if ok and v ~= nil then table.insert(items, {"value", d, d.Name, v}) end
+end
+end
+table.sort(items, function(a, b) return a[3]:lower() < b[3]:lower() end)
+local q = query:lower()
+local n = 0
+for _, it in ipairs(items) do
+if q == "" or it[3]:lower():find(q, 1, true) then
+n = n + 1
+addRow(it[1], it[2], it[3], it[4], n)
+end
+end
+info.Text = TABS[tabIdx] .. "  •  " .. inst.ClassName .. "  •  " .. n .. " properti"
+end
+for i, name in ipairs(TABS) do
+local b = button(name, 10, tabBar, {Size = UDim2.new(1 / #TABS, -4, 1, 0), BackgroundColor3 = C.panel2, LayoutOrder = i})
+corner(b, 8)
+b.MouseButton1Click:Connect(function() tabIdx = i rebuild() end)
+tabBtns[i] = b
+end
+search:GetPropertyChangedSignal("Text"):Connect(function()
+query = search.Text
+rebuild()
+end)
+local prev = sw.onChange
+sw.onChange = function(v)
+if prev then prev(v) end
+if v then
+rebuild()
+task.spawn(function()
+while sw.open and gui.Parent do
+task.wait(0.6)
+for _, r in ipairs(rows) do
+if r.card.Parent then
+local cur = readRow(r)
+if cur ~= nil then
+if r.btn and type(cur) == "boolean" then setBool(r.btn, cur)
+elseif r.box and not r.box:IsFocused() then r.box.Text = fmt(cur) end
+end
+end
+end
+end
+end)
+end
+end
+track(player.CharacterAdded:Connect(function() task.delay(1, function() if sw.open then rebuild() end end) end))
+makeOpenCard(pages["FITUR"], "Properti Akun", "Lihat & ubah properti: Player, Karakter, Humanoid", 37, sw)
 end)
 secure("SERVER", function()
 local sw = makeSubWindow("SERVER HOP", "Pindah / refresh / rejoin", 240, 300)
@@ -2804,6 +3005,40 @@ end)
 actBtn("REJOIN", 15, C.panel2, function()
 status.Text = "Masuk ulang ke server ini..."
 TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, player)
+end)
+local hopToast = make("TextLabel", {
+Size = UDim2.new(0, 280, 0, 36), AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 120),
+BackgroundColor3 = C.bg, BackgroundTransparency = 0.1, TextColor3 = Color3.fromRGB(255, 220, 120),
+Font = Enum.Font.GothamBold, TextSize = 13, TextWrapped = true, Visible = false,
+}, gui)
+corner(hopToast, 10)
+local hopJob = 0
+local function say(t)
+hopJob = hopJob + 1
+local my = hopJob
+hopToast.Text = t
+hopToast.Visible = true
+task.delay(5, function() if hopJob == my then hopToast.Visible = false end end)
+end
+makeToggle(pages["MISC"], "Server Hop (min 1 pemain)", "Nyalakan = pindah ke server yang ada pemainnya", 11, false, function(v)
+if not v then return end
+if busy then return false end
+busy = true
+task.spawn(function()
+local okRun, err = pcall(function()
+say("Mencari server dengan minimal 1 pemain...")
+local cands, okHttp = findServers(1)
+if #cands == 0 then
+say(okHttp and "Tidak ada server yang cocok." or "Gagal mengambil daftar server (executor tidak mendukung HTTP?).")
+busy = false
+return
+end
+say("Pindah server (" .. #cands .. " pilihan)...")
+TeleportService:TeleportToPlaceInstance(game.PlaceId, cands[math.random(1, #cands)], player)
+end)
+if not okRun then say("Error: " .. tostring(err)) busy = false end
+end)
+return false -- switch kembali mati, siap dipakai lagi
 end)
 end)
 secure("THEME", function()
