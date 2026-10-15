@@ -1596,7 +1596,7 @@ local showScreen = true
 local savePos = true
 local autoSteal = true
 local returnAfter = true
-local lastPP
+local lastPP, lastPart
 local knownRank = {common = 1, umum = 1, uncommon = 2, rare = 3, langka = 3, epic = 4, legendary = 5, legendaris = 5, mythic = 6, mythical = 6, mitos = 6, ilahi = 7, divine = 7, godly = 7, secret = 8, rahasia = 8, exotic = 8, eternal = 9, abadi = 9}
 local lowTier = {common = true, umum = true, uncommon = true, rare = true, langka = true, epic = true, legendary = true, legendaris = true, mythic = true, mythical = true, mitos = true}
 local tiers = {} -- nama -> {n, sum}
@@ -1824,36 +1824,102 @@ makeChip(UNK)
 label("TELUR MUNCUL  (ketuk + untuk teleport)", 10, C.muted, page, {Size = UDim2.new(1, -6, 0, 16), LayoutOrder = 99})
 makeToggle(page, "Auto Curi Saat Teleport", "Setelah teleport ke telur, langsung curi", 5, true, function(v) autoSteal = v end)
 makeToggle(page, "Kembali Setelah Curi", "Teleport balik ke posisi tersimpan setelah steal", 6, true, function(v) returnAfter = v end)
-local function stealNow(pp)
-if not (pp and pp.Parent) then return end
-local origHold = pp.HoldDuration
-pcall(function() pp.HoldDuration = 0 end)
-for _ = 1, 4 do
-if not pp.Parent or not pp.Enabled then break end
-local ok = false
-if fireproximityprompt then ok = pcall(fireproximityprompt, pp) end
-if not ok then
+local function carryingNow()
+if (tonumber(player:GetAttribute("CarriedEggCount")) or 0) > 0 then return true end
+local ch = player.Character
+if ch then
+for _, t in ipairs(ch:GetChildren()) do
+if t:IsA("Tool") then
+local n = t.Name:lower()
+if t:GetAttribute("IsEggTool") or t:GetAttribute("EggId") ~= nil or n:find("egg", 1, true) or n:find("telur", 1, true) then return true end
+end
+end
+end
+return false
+end
+local stealWords = {"curi", "steal", "ambil", "take", "grab", "collect", "pick", "claim", "rob"}
+local function findPrompts(pp, part)
+local list, seenP = {}, {}
+local function add(x)
+if x and x:IsA("ProximityPrompt") and not seenP[x] then seenP[x] = true table.insert(list, x) end
+end
+add(pp)
+local root = part and (part:FindFirstAncestorOfClass("Model") or part.Parent)
+if root and root ~= workspace then
+for _, d in ipairs(root:GetDescendants()) do add(d) end
+if #list == 0 and root.Parent and root.Parent ~= workspace then
+for _, d in ipairs(root.Parent:GetDescendants()) do
+if d:IsA("ProximityPrompt") and d.Parent and d.Parent:IsA("BasePart") and part and (d.Parent.Position - part.Position).Magnitude < 15 then add(d) end
+end
+end
+end
+table.sort(list, function(x, y)
+local function sc(p0)
+local t = ((p0.ActionText or "") .. " " .. (p0.ObjectText or "")):lower()
+for _, w in ipairs(stealWords) do if t:find(w, 1, true) then return 1 end end
+return 0
+end
+return sc(x) > sc(y)
+end)
+return list
+end
+local function stealNow(pp, part)
+local list = findPrompts(pp, part)
+if #list == 0 then return false end
+local orig = {}
+for _, p0 in ipairs(list) do
+orig[p0] = {p0.HoldDuration, p0.RequiresLineOfSight, p0.MaxActivationDistance}
 pcall(function()
-pp:InputHoldBegin()
-pp:InputHoldEnd()
+p0.HoldDuration = 0
+p0.RequiresLineOfSight = false
+if p0.MaxActivationDistance < 30 then p0.MaxActivationDistance = 30 end
 end)
 end
-task.wait(0.12)
+local ok = false
+local t0 = os.clock()
+while os.clock() - t0 < 2 and not ok do
+local h = getHRP()
+if h and part and part.Parent and (h.Position - part.Position).Magnitude > 12 then
+h.CFrame = CFrame.new(part.Position + Vector3.new(0, 4, 0))
 end
-pcall(function() if pp.Parent then pp.HoldDuration = origHold end end)
+for _, p0 in ipairs(list) do
+if p0.Parent and p0.Enabled then
+local fired = false
+if fireproximityprompt then fired = pcall(fireproximityprompt, p0) end
+pcall(function()
+p0:InputHoldBegin()
+p0:InputHoldEnd()
+end)
 end
-local function goTo(pos, pp)
+end
+task.wait(0.15)
+if carryingNow() then ok = true end
+local gone = true
+for _, p0 in ipairs(list) do if p0.Parent and p0.Enabled then gone = false end end
+if gone then ok = true end
+end
+for p0, o in pairs(orig) do
+pcall(function()
+if p0.Parent then
+p0.HoldDuration, p0.RequiresLineOfSight, p0.MaxActivationDistance = o[1], o[2], o[3]
+end
+end)
+end
+return ok
+end
+local function goTo(pos, pp, part)
 local h = getHRP()
 if not h then return end
 local from = h.CFrame
 if savePos then savedCF = from end
 h.CFrame = CFrame.new(pos + Vector3.new(0, 4, 0))
-if autoSteal and pp then
+if autoSteal and (pp or part) then
 task.spawn(function()
-task.wait(0.25)
-stealNow(pp)
+task.wait(0.3)
+local ok = stealNow(pp, part)
+toast(ok and "Steal berhasil" or "Steal belum terdeteksi berhasil", true)
 if returnAfter and savedCF then
-task.wait(0.15)
+task.wait(0.2)
 local h2 = getHRP()
 if h2 then h2.CFrame = savedCF end
 end
@@ -1870,7 +1936,7 @@ toast("Belum ada posisi tersimpan", true)
 end
 end)
 tb.MouseButton1Click:Connect(function()
-if lastPos then goTo(lastPos, lastPP) else toast("Belum ada telur yang terdeteksi", true) end
+if lastPos then goTo(lastPos, lastPP, lastPart) else toast("Belum ada telur yang terdeteksi", true) end
 end)
 local rows, eggN = {}, 0
 local function addRow(nm, part, r, val, pp)
@@ -1889,7 +1955,7 @@ local plus = button("+", 20, card, {Size = UDim2.new(0, 40, 0, 34), Position = U
 corner(plus, 10)
 plus.MouseButton1Click:Connect(function()
 local pos = part.Parent and part.Position or p0
-goTo(pos, pp)
+goTo(pos, pp, part)
 end)
 table.insert(rows, {card = card, part = part})
 while #rows > 25 do
@@ -1914,7 +1980,7 @@ local r, val, num = inf.tier, inf.val, inf.num
 if not passes(r) then return end
 local part = m:IsA("Model") and (m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart", true)) or m
 if not (part and part:IsA("BasePart")) then return end
-lastModel, lastPos, lastPP = m, part.Position, pp
+lastModel, lastPos, lastPP, lastPart = m, part.Position, pp, part
 addRow(inf.name, part, r, val, pp)
 toast(string.format("TELUR %s (%s)%s muncul", inf.name, r or "?", val and (" " .. val) or ""))
 end
