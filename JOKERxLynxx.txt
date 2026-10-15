@@ -1595,6 +1595,7 @@ local on = false
 local showScreen = true
 local savePos = true
 local knownRank = {common = 1, umum = 1, uncommon = 2, rare = 3, langka = 3, epic = 4, legendary = 5, legendaris = 5, mythic = 6, mythical = 6, mitos = 6, ilahi = 7, divine = 7, godly = 7, secret = 8, rahasia = 8, exotic = 8, eternal = 9, abadi = 9}
+local lowTier = {common = true, umum = true, uncommon = true, rare = true, langka = true, epic = true, legendary = true, legendaris = true, mythic = true, mythical = true, mitos = true}
 local tiers = {} -- nama -> {n, sum}
 local minChoice = 1 -- 1 = Auto (tier paling langka kedua), 2 = Semua, 3+ = tier
 local function sortedTiers()
@@ -1629,8 +1630,8 @@ end
 local function passes(r)
 local opts, st = options()
 local sel = opts[minChoice] or opts[1]
-if sel[1] == "Semua" or not sel[2] then return true end
-if not r then return false end
+if sel[1] == "Semua" then return true end
+if not sel[2] or not r then return false end
 local a, b
 for i, nm in ipairs(st) do
 if nm == r then a = i end
@@ -1812,7 +1813,7 @@ local m = pp:FindFirstAncestorOfClass("Model") or pp.Parent
 if not m or m.Name:lower():find("debris", 1, true) then return end
 local r = rarityOf(m)
 local val, num = valueOf(m)
-if r then
+if r and not lowTier[r:lower()] then
 local d = tiers[r]
 if not d then d = {n = 0, sum = 0} tiers[r] = d end
 if num then d.n = d.n + 1 d.sum = d.sum + num end
