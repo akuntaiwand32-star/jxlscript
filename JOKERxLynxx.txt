@@ -1598,7 +1598,7 @@ local on = false
 local showScreen = true
 local savePos = true
 local autoSteal = true
-local fallbackTp = false
+local fallbackTp = true
 local returnAfter = true
 local lastPP, lastPart
 local knownRank = {common = 1, umum = 1, uncommon = 2, rare = 3, langka = 3, epic = 4, legendary = 5, legendaris = 5, mythic = 6, mythical = 6, mitos = 6, ilahi = 7, divine = 7, godly = 7, secret = 8, rahasia = 8, exotic = 8, eternal = 9, abadi = 9}
@@ -1830,20 +1830,26 @@ end
 addChip = makeChip
 makeChip(UNK)
 makeToggle(page, "Curi Langsung (Tanpa Teleport)", "Ketuk + langsung curi dari tempatmu", 5, true, function(v) autoSteal = v end)
-makeToggle(page, "Teleport Jika Gagal", "Kalau curi jarak jauh gagal, teleport lalu curi", 9, false, function(v) fallbackTp = v end)
+makeToggle(page, "Teleport Jika Gagal", "Kalau curi jarak jauh gagal, teleport lalu curi", 9, true, function(v) fallbackTp = v end)
 makeToggle(page, "Kembali Setelah Curi", "Balik ke posisi tersimpan (saat teleport)", 6, true, function(v) returnAfter = v end)
-local function carryingNow()
-if (tonumber(player:GetAttribute("CarriedEggCount")) or 0) > 0 then return true end
-local ch = player.Character
-if ch then
-for _, t in ipairs(ch:GetChildren()) do
+local function invSig()
+local n = tonumber(player:GetAttribute("CarriedEggCount")) or 0
+for _, c in ipairs({player.Character, player:FindFirstChildOfClass("Backpack")}) do
+if c then
+for _, t in ipairs(c:GetChildren()) do
 if t:IsA("Tool") then
-local n = t.Name:lower()
-if t:GetAttribute("IsEggTool") or t:GetAttribute("EggId") ~= nil or n:find("egg", 1, true) or n:find("telur", 1, true) then return true end
+n = n + 1
+for k, v in pairs(t:GetAttributes()) do
+local kl = tostring(k):lower()
+if type(v) == "number" and (kl:find("count", 1, true) or kl:find("amount", 1, true) or kl:find("qty", 1, true) or kl:find("quantity", 1, true) or kl:find("stack", 1, true)) then n = n + v end
+end
+local q = t:FindFirstChild("Count") or t:FindFirstChild("Amount") or t:FindFirstChild("Quantity")
+if q and q:IsA("ValueBase") and type(q.Value) == "number" then n = n + q.Value end
 end
 end
 end
-return false
+end
+return n
 end
 local stealWords = {"curi", "steal", "ambil", "take", "grab", "collect", "pick", "claim", "rob"}
 local function findPrompts(pp, part)
@@ -1885,27 +1891,26 @@ if p0.MaxActivationDistance < need then p0.MaxActivationDistance = need end
 end)
 end
 local ok = false
+local before = invSig()
 local t0 = os.clock()
-while os.clock() - t0 < 1.2 and not ok do
+local limit = remote and 1.2 or 2
+while os.clock() - t0 < limit and not ok do
 local h = getHRP()
 if not remote and h and part and part.Parent and (h.Position - part.Position).Magnitude > 12 then
 h.CFrame = CFrame.new(part.Position + Vector3.new(0, 4, 0))
 end
 for _, p0 in ipairs(list) do
 if p0.Parent and p0.Enabled then
-local fired = false
-if fireproximityprompt then fired = pcall(fireproximityprompt, p0) end
+if fireproximityprompt then pcall(fireproximityprompt, p0) end
 pcall(function()
 p0:InputHoldBegin()
 p0:InputHoldEnd()
 end)
 end
 end
-task.wait() -- satu frame saja, lalu cek hasil
-if carryingNow() then ok = true end
-local gone = true
-for _, p0 in ipairs(list) do if p0.Parent and p0.Enabled then gone = false end end
-if gone then ok = true end
+task.wait(0.12)
+if invSig() > before then ok = true end
+if not ok and not remote and part and not part.Parent then task.wait(0.3) if invSig() > before then ok = true end end
 end
 for p0, o in pairs(orig) do
 pcall(function()
@@ -1927,12 +1932,12 @@ if not autoSteal then plainTp(pos) return end
 task.spawn(function()
 local ok = stealNow(pp, part, true)
 if ok then
-toast("Steal berhasil (tanpa teleport)", true)
+toast("Item masuk inventaris (tanpa teleport)", true)
 if onOk then onOk() end
 return
 end
 if not fallbackTp then
-toast("Steal jarak jauh belum berhasil. Nyalakan 'Teleport Jika Gagal'.", true)
+toast("Item belum masuk inventaris dari jauh. Nyalakan 'Teleport Jika Gagal'.", true)
 return
 end
 local h = getHRP()
@@ -1945,7 +1950,7 @@ local h2 = getHRP()
 if h2 then h2.CFrame = savedCF end
 end
 if ok2 and onOk then onOk() end
-toast(ok2 and "Steal berhasil (setelah teleport)" or "Steal belum terdeteksi berhasil", true)
+toast(ok2 and "Item masuk inventaris (setelah teleport)" or "Gagal: item belum masuk inventaris (mungkin sudah diambil / jarak)", true)
 end)
 end
 backBtn.MouseButton1Click:Connect(function()
@@ -2040,10 +2045,11 @@ local function lowerHas(str, list)
 for _, w in ipairs(list) do if str:find(w, 1, true) then return true end end
 return false
 end
+local itemWords = {"egg", "telur", "seed", "benih", "biji", "fruit", "buah", "brainrot", "block", "blok", "crop", "plant"}
 local function isAnimal(m)
 if m:FindFirstChildWhichIsA("Humanoid", true) then return true end
 local nm = m.Name:lower()
-if nm:find("egg", 1, true) or nm:find("telur", 1, true) then return false end
+if lowerHas(nm, itemWords) then return false end
 if nm:find("pet", 1, true) or nm:find("animal", 1, true) or nm:find("hewan", 1, true) then return true end
 for k in pairs(m:GetAttributes()) do
 local kl = tostring(k):lower()
@@ -2071,7 +2077,7 @@ if isAnimal(m) or isMine(m) then return false end
 if at:find("curi", 1, true) or at:find("steal", 1, true) or at:find("%f[%a]rob%f[%A]") then return true end
 if lowerHas(at, badWords) then return false end
 local nm = m.Name:lower()
-if nm:find("egg", 1, true) or nm:find("telur", 1, true) then return true end
+if lowerHas(nm, itemWords) then return true end
 local o = m.Parent
 for _ = 1, 5 do
 if not o or o == workspace then break end
@@ -2107,7 +2113,7 @@ end
 local function checkModel(m)
 if not on or seen[m] then return end
 local nm = m.Name:lower()
-if not (nm:find("egg", 1, true) or nm:find("telur", 1, true)) or nm:find("debris", 1, true) then return end
+if not lowerHas(nm, itemWords) or nm:find("debris", 1, true) then return end
 if isAnimal(m) or isMine(m) then return end
 if not infoOf(m).tier then return end -- tanpa prompt Curi harus punya tier agar tidak berisik
 seen[m] = true
