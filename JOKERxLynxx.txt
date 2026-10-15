@@ -1602,54 +1602,27 @@ local lowTier = {common = true, umum = true, uncommon = true, rare = true, langk
 local tiers = {} -- nama -> {n, sum}
 local hideTier = {common = true, comon = true, uncommon = true, uncomon = true, rare = true, epic = true, legendary = true, mythic = true, mythical = true, mytic = true, umum = true, langka = true, legendaris = true, mitos = true}
 local minChoice = 1 -- 1 = Auto (tier paling langka kedua), 2 = Semua, 3+ = tier
-local function sortedTiers()
-local list = {}
-for nm, d in pairs(tiers) do
-if not hideTier[nm:lower()] then table.insert(list, {nm, d}) end
+local enabled = {} -- tier (huruf kecil) -> tampil / tidak; bisa diatur lewat tombol tier
+local UNK = "(tanpa tier)"
+local function isOn(r)
+local k = r and r:lower() or UNK
+if enabled[k] == nil then
+enabled[k] = (r == nil) or not hideTier[k]
 end
-local allKnown, allVal = true, true
-for _, e in ipairs(list) do
-if not knownRank[e[1]:lower()] then allKnown = false end
-if e[2].n == 0 then allVal = false end
+return enabled[k]
 end
-local function key(e)
-local kr = knownRank[e[1]:lower()]
-if allKnown then return kr end
-if allVal then return e[2].sum / e[2].n end
-return kr or 0
+local passes = isOn
+local addChip
+local function registerTier(r, num)
+if not r then return end
+local d = tiers[r]
+if not d then
+d = {n = 0, sum = 0}
+tiers[r] = d
+isOn(r)
+if addChip then addChip(r) end
 end
-table.sort(list, function(a, b)
-local ka, kb = key(a), key(b)
-if ka == kb then return a[1] < b[1] end
-return ka < kb
-end)
-local out = {}
-for _, e in ipairs(list) do table.insert(out, e[1]) end
-return out
-end
-local function options()
-local st = sortedTiers()
-local opts = {{"Auto", st[#st - 1] or st[#st]}, {"Semua", nil}}
-for i = math.max(1, #st - 2), #st do table.insert(opts, {st[i], st[i]}) end
-return opts, st
-end
-local function passes(r)
-local opts, st = options()
-local sel = opts[minChoice] or opts[1]
-if sel[1] == "Semua" then return true end
-if not sel[2] or not r then return false end
-local a, b
-for i, nm in ipairs(st) do
-if nm == r then a = i end
-if nm == sel[2] then b = i end
-end
-return a ~= nil and b ~= nil and a >= b
-end
-local function minLabel()
-local opts = options()
-local sel = opts[minChoice] or opts[1]
-if sel[1] == "Auto" then return "Auto (" .. (sel[2] or "Semua") .. ")" end
-return sel[1]
+if num then d.n = d.n + 1 d.sum = d.sum + num end
 end
 local known = {["hyena egg"] = "Eternal", ["siege crawler egg"] = "Eternal"}
 local seen = setmetatable({}, {__mode = "k"})
@@ -1735,12 +1708,79 @@ local nm = m.Name:lower()
 for k, v in pairs(known) do if nm:find(k, 1, true) then return v end end
 return nil
 end
+local extraTier = {celestial = 10, transcendent = 11, cosmic = 10, omega = 11, unique = 9, ultimate = 10, supreme = 10, limited = 8, event = 6, infinite = 11, immortal = 10, ancient = 6}
+local function isTierWord(t)
+local l = t:lower()
+if knownRank[l] or extraTier[l] then return true end
+for nm in pairs(tiers) do if nm:lower() == l then return true end end
+return false
+end
+local function infoOf(m)
+local inf = {}
+local o = m
+for _ = 1, 4 do
+if not o or o == workspace then break end
+for k, v in pairs(o:GetAttributes()) do
+local kl = tostring(k):lower()
+if type(v) == "string" and v ~= "" then
+if not inf.tier and (kl:find("rarity", 1, true) or kl == "tier" or kl:find("grade", 1, true)) then inf.tier = v end
+if not inf.name and (kl:find("name", 1, true) or kl == "eggtype" or kl == "pettype") and not v:find("^%d+$") and not v:find("RuntimeEgg", 1, true) then inf.name = v end
+end
+end
+o = o.Parent
+end
+local num
+inf.val, num = valueOf(m)
+inf.num = num
+local n = 0
+for _, d in ipairs(m:GetDescendants()) do
+n = n + 1
+if n > 160 then break end
+if d:IsA("TextLabel") and d.Text ~= "" then
+local t = d.Text:gsub("<[^>]+>", ""):gsub("%s+", " "):match("^%s*(.-)%s*$")
+if t and #t >= 2 then
+if isTierWord(t) then
+if not inf.tier then inf.tier = t end
+elseif t:find("%$") or t:find("/s") then
+if not inf.val then inf.val = t end
+elseif not t:match("^[%d%.,:%s%%xX]+$") and #t >= 3 and #t <= 36 and not inf.name then
+inf.name = t
+end
+end
+end
+end
+if not inf.name then
+inf.name = m.Name:gsub("RuntimeEgg_?", ""):gsub("_", " ")
+if inf.name == "" then inf.name = m.Name end
+end
+registerTier(inf.tier, inf.num)
+return inf
+end
+local function tierColor(r)
+if not r then return Color3.fromRGB(255, 200, 60) end
+local l = r:lower()
+local k = knownRank[l] or extraTier[l]
+if k then
+if k >= 10 then return Color3.fromRGB(255, 60, 60) end
+if k >= 9 then return Color3.fromRGB(255, 80, 80) end
+if k >= 7 then return Color3.fromRGB(255, 90, 220) end
+if k >= 5 then return Color3.fromRGB(255, 190, 40) end
+if k >= 3 then return Color3.fromRGB(80, 160, 255) end
+return Color3.fromRGB(200, 200, 200)
+end
+local h = 0
+for i = 1, #l do h = (h * 31 + l:byte(i)) % 360 end
+return Color3.fromHSV(h / 360, 0.75, 1)
+end
+Settings.eggInfo = infoOf
+Settings.tierColor = tierColor
+Settings.eggVisible = function(r) return isOn(r) end
 makeToggle(page, "Pemberitahuan Telur Langka", "Catat telur langka yang muncul di dunia", 1, false, function(v)
 on = v
 if v then task.spawn(function() Settings.eggScan() end) end
 end)
 makeToggle(page, "Notifikasi di Layar", "Tampilkan tulisan di layar saat telur muncul", 2, true, function(v) showScreen = v end)
-local rb = button("MINIMAL TIER: " .. minLabel() .. " (ketuk ganti)", 11, page, {
+local rb = button("TIER: ketuk untuk nyalakan / matikan semua", 11, page, {
 Size = UDim2.new(1, -2, 0, 30), BackgroundColor3 = C.panel2, LayoutOrder = 3,
 })
 corner(rb, 8)
@@ -1753,7 +1793,35 @@ local tb = button("TELEPORT KE TELUR TERAKHIR", 11, page, {
 Size = UDim2.new(1, -2, 0, 30), BackgroundColor3 = C.panel2, LayoutOrder = 8,
 })
 corner(tb, 8)
-label("TELUR MUNCUL  (ketuk + untuk teleport)", 10, C.muted, page, {Size = UDim2.new(1, -6, 0, 16), LayoutOrder = 9})
+label("PILIH TIER YANG DITAMPILKAN", 10, C.muted, page, {Size = UDim2.new(1, -6, 0, 16), LayoutOrder = 10})
+local chips, chipN = {}, 0
+local function makeChip(name)
+if chips[name] then return end
+chipN = chipN + 1
+local col = (name == UNK) and Color3.fromRGB(180, 180, 190) or Settings.tierColor(name)
+local b = button("", 12, page, {Size = UDim2.new(1, -2, 0, 30), BackgroundColor3 = C.panel2, LayoutOrder = 10 + chipN})
+corner(b, 8)
+local c = {}
+function c.refresh()
+local on2 = isOn(name ~= UNK and name or nil)
+b.Text = (on2 and "ON   " or "OFF  ") .. name
+b.TextColor3 = on2 and col or C.muted
+b.BackgroundTransparency = on2 and 0 or 0.4
+end
+b.MouseButton1Click:Connect(function()
+local k = name ~= UNK and name:lower() or UNK
+enabled[k] = not isOn(name ~= UNK and name or nil)
+c.refresh()
+table.clear(seen)
+if Settings.espRefresh then Settings.espRefresh() end
+if on then task.spawn(scan) end
+end)
+chips[name] = c
+c.refresh()
+end
+addChip = makeChip
+makeChip(UNK)
+label("TELUR MUNCUL  (ketuk + untuk teleport)", 10, C.muted, page, {Size = UDim2.new(1, -6, 0, 16), LayoutOrder = 99})
 makeToggle(page, "Auto Curi Saat Teleport", "Setelah teleport ke telur, langsung curi", 5, true, function(v) autoSteal = v end)
 makeToggle(page, "Kembali Setelah Curi", "Teleport balik ke posisi tersimpan setelah steal", 6, true, function(v) returnAfter = v end)
 local function stealNow(pp)
@@ -1805,16 +1873,16 @@ tb.MouseButton1Click:Connect(function()
 if lastPos then goTo(lastPos, lastPP) else toast("Belum ada telur yang terdeteksi", true) end
 end)
 local rows, eggN = {}, 0
-local function addRow(m, part, r, val, pp)
+local function addRow(nm, part, r, val, pp)
 eggN = eggN + 1
 if eggN > 380 then eggN = 380 end
-local col = rcol[r or ""] or Color3.fromRGB(255, 200, 60)
+local col = tierColor(r)
 local card = make("Frame", {Size = UDim2.new(1, -6, 0, 46), BackgroundColor3 = C.panel, BackgroundTransparency = 0.2, LayoutOrder = 500 - eggN}, page)
 corner(card, 10)
 stroke(card, col, 1, 0.45)
 local bar = make("Frame", {Size = UDim2.new(0, 4, 1, -12), Position = UDim2.new(0, 6, 0, 6), BackgroundColor3 = col, BorderSizePixel = 0}, card)
 corner(bar, 2)
-label(m.Name .. (r and (" [" .. r .. "]") or ""), 12, col, card, {Size = UDim2.new(1, -76, 0, 16), Position = UDim2.new(0, 18, 0, 4), TextTruncate = Enum.TextTruncate.AtEnd})
+label(nm .. (r and (" [" .. r .. "]") or ""), 12, col, card, {Size = UDim2.new(1, -76, 0, 16), Position = UDim2.new(0, 18, 0, 4), TextTruncate = Enum.TextTruncate.AtEnd})
 local p0 = part.Position
 label((val and (val .. "  ") or "") .. string.format("(%.0f, %.0f, %.0f)", p0.X, p0.Y, p0.Z), 10, C.muted, card, {Font = Enum.Font.Gotham, Size = UDim2.new(1, -76, 0, 14), Position = UDim2.new(0, 18, 0, 24), TextTruncate = Enum.TextTruncate.AtEnd})
 local plus = button("+", 20, card, {Size = UDim2.new(0, 40, 0, 34), Position = UDim2.new(1, -50, 0.5, -17), BackgroundColor3 = C.blue})
@@ -1841,21 +1909,14 @@ end
 end
 end)
 local function process(m, pp)
-local r = rarityOf(m)
-local val, num = valueOf(m)
-if r then
-local d = tiers[r]
-if not d then d = {n = 0, sum = 0} tiers[r] = d end
-if num then d.n = d.n + 1 d.sum = d.sum + num end
-rb.Text = "MINIMAL TIER: " .. minLabel() .. " (ketuk ganti)"
-end
-if r and hideTier[r:lower()] then return end -- tier umum tidak pernah ditampilkan
+local inf = infoOf(m)
+local r, val, num = inf.tier, inf.val, inf.num
 if not passes(r) then return end
 local part = m:IsA("Model") and (m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart", true)) or m
 if not (part and part:IsA("BasePart")) then return end
 lastModel, lastPos, lastPP = m, part.Position, pp
-addRow(m, part, r, val, pp)
-toast(string.format("TELUR %s (%s)%s muncul", m.Name, r or "?", val and (" " .. val) or ""))
+addRow(inf.name, part, r, val, pp)
+toast(string.format("TELUR %s (%s)%s muncul", inf.name, r or "?", val and (" " .. val) or ""))
 end
 local function check(pp)
 if not on or seen[pp] then return end
@@ -1874,11 +1935,7 @@ local function checkModel(m)
 if not on or seen[m] then return end
 local nm = m.Name:lower()
 if not (nm:find("egg", 1, true) or nm:find("telur", 1, true)) or nm:find("debris", 1, true) then return end
-local hasR = false
-for k in pairs(m:GetAttributes()) do
-if tostring(k):lower():find("rarity", 1, true) then hasR = true break end
-end
-if not hasR then return end
+if not infoOf(m).tier then return end -- tanpa prompt Curi harus punya tier agar tidak berisik
 seen[m] = true
 process(m, m:FindFirstChildWhichIsA("ProximityPrompt", true))
 end
@@ -1886,7 +1943,7 @@ local function scan()
 local n = 0
 for _, o in ipairs(workspace:GetDescendants()) do
 if not on then return end
-if o:IsA("ProximityPrompt") then pcall(check, o)
+if o:IsA("ProximityPrompt") then task.spawn(pcall, check, o)
 elseif o:IsA("Model") then pcall(checkModel, o) end
 n = n + 1
 if n % 400 == 0 then task.wait() end
@@ -1916,10 +1973,12 @@ if on and o:IsA("ProximityPrompt") then task.spawn(pcall, check, o)
 elseif on and o:IsA("Model") then task.delay(0.8, function() pcall(checkModel, o) end) end
 end))
 rb.MouseButton1Click:Connect(function()
-local opts = options()
-minChoice = minChoice % #opts + 1
-rb.Text = "MINIMAL TIER: " .. minLabel() .. " (ketuk ganti)"
+local anyOn = false
+for k, v in pairs(enabled) do if v then anyOn = true end end
+for k in pairs(enabled) do enabled[k] = not anyOn end
+for _, c in pairs(chips) do c.refresh() end
 table.clear(seen)
+if Settings.espRefresh then Settings.espRefresh() end
 if on then task.spawn(scan) end
 end)
 end)
@@ -2590,6 +2649,7 @@ local Lighting = game:GetService("Lighting")
 local rcol = {Umum = Color3.fromRGB(200, 200, 200), Langka = Color3.fromRGB(80, 160, 255), Legendaris = Color3.fromRGB(255, 190, 40), Ilahi = Color3.fromRGB(255, 90, 220), Eternal = Color3.fromRGB(255, 60, 60)}
 local espOn = false
 local tags = {}
+local tick3 = 0
 local function rarityOf(m)
 local o = m
 for _ = 1, 4 do
@@ -2611,7 +2671,9 @@ local m = pp:FindFirstAncestorOfClass("Model") or pp.Parent
 if not m or m.Name:lower():find("debris", 1, true) then return end
 local part = m:IsA("Model") and (m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart", true)) or m
 if not (part and part:IsA("BasePart")) then return end
-local r = rarityOf(m)
+local inf = Settings.eggInfo(m)
+if not Settings.eggVisible(inf.tier) then return end
+local r = inf.tier
 local b = Instance.new("BillboardGui")
 b.Name = "JxL_EggTag"
 b.Size = UDim2.new(0, 160, 0, 50)
@@ -2625,12 +2687,11 @@ t.Font = Enum.Font.GothamBlack
 t.TextSize = 13
 t.TextWrapped = true
 t.TextStrokeTransparency = 0
-t.TextColor3 = rcol[r or ""] or Color3.fromRGB(255, 255, 255)
-local vv = Settings.eggValue and Settings.eggValue(m)
-t.Text = m.Name .. (r and (" [" .. r .. "]") or "") .. (vv and ("\n" .. vv) or "")
+t.TextColor3 = Settings.tierColor(r)
+t.Text = inf.name .. (r and (" [" .. r .. "]") or "") .. (inf.val and ("\n" .. inf.val) or "")
 t.Parent = b
 b.Parent = player:FindFirstChildOfClass("PlayerGui") or gui
-tags[pp] = {b = b, t = t, base = t.Text, part = part}
+tags[pp] = {b = b, t = t, base = t.Text, part = part, m = m}
 end
 local function clearTags()
 for pp, d in pairs(tags) do pcall(function() d.b:Destroy() end) tags[pp] = nil end
@@ -2650,9 +2711,16 @@ end))
 task.spawn(function()
 while gui.Parent do
 task.wait(0.5)
+tick3 = tick3 + 1
 if espOn then
 local h = getHRP()
 for pp, d in pairs(tags) do
+if tick3 % 6 == 0 and d.m and d.m.Parent then
+local inf = Settings.eggInfo(d.m)
+d.base = inf.name .. (inf.tier and (" [" .. inf.tier .. "]") or "") .. (inf.val and ("\n" .. inf.val) or "")
+d.t.TextColor3 = Settings.tierColor(inf.tier)
+d.b.Enabled = Settings.eggVisible(inf.tier)
+end
 if not pp.Parent or not d.part.Parent then
 pcall(function() d.b:Destroy() end)
 tags[pp] = nil
@@ -2664,6 +2732,9 @@ end
 end
 end)
 track({Disconnect = function() clearTags() end})
+Settings.espRefresh = function()
+if espOn then clearTags() task.spawn(scanTags) end
+end
 makeToggle(pages["EGG"], "Penanda Telur di Layar", "Nama, kelangkaan & jarak telur (tembus dinding)", 11, false, function(v)
 espOn = v
 if v then task.spawn(scanTags) else clearTags() end
