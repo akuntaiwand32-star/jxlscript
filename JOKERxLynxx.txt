@@ -4230,10 +4230,10 @@ secure("CATALOG", function()
 local page = pages["AVATAR"]
 local Market = game:GetService("MarketplaceService")
 local HttpS = game:GetService("HttpService")
-local sw = makeSubWindow("KATALOG AVATAR", "Cari item lalu ketuk untuk pakai / lepas", 300, 320, 80)
+local sw = makeSubWindow("KATALOG AVATAR", "Cari item lalu ketuk untuk pakai / lepas", 300, 350, 110)
 sw.keepOnHide = true
 local list = sw.content
-list.Size = UDim2.new(1, -16, 1, -(52 + 80 + 44))
+list.Size = UDim2.new(1, -16, 1, -(52 + 110 + 44))
 local searchBox = inputBox("", sw.win, {
 Size = UDim2.new(1, -104, 0, 28), Position = UDim2.new(0, 12, 0, 50), TextSize = 12,
 PlaceholderText = "Cari item katalog...", PlaceholderColor3 = C.muted,
@@ -4249,6 +4249,12 @@ BorderSizePixel = 0, ScrollBarThickness = 0, CanvasSize = UDim2.new(0, 0, 0, 0),
 AutomaticCanvasSize = Enum.AutomaticSize.X, ScrollingDirection = Enum.ScrollingDirection.X,
 }, sw.win)
 make("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder}, chipBar)
+local sortBar = make("ScrollingFrame", {
+Size = UDim2.new(1, -24, 0, 26), Position = UDim2.new(0, 12, 0, 114), BackgroundTransparency = 1,
+BorderSizePixel = 0, ScrollBarThickness = 0, CanvasSize = UDim2.new(0, 0, 0, 0),
+AutomaticCanvasSize = Enum.AutomaticSize.X, ScrollingDirection = Enum.ScrollingDirection.X,
+}, sw.win)
+make("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder}, sortBar)
 local idBox = inputBox("", sw.win, {
 Size = UDim2.new(1, -176, 0, 30), Position = UDim2.new(0, 12, 1, -38), TextSize = 11,
 PlaceholderText = "Tautan / ID...", PlaceholderColor3 = C.muted,
@@ -4274,6 +4280,9 @@ local cats = {
 }
 local cat = 1
 local chipBtns = {}
+local sorts = {{"LARIS", "sell"}, {"FAVORIT", "fav"}, {"LIMITED", "ltd"}, {"BARU", "new"}}
+local sortI = 1
+local sortBtns = {}
 local slotMap = {[17] = "Head", [18] = "Face", [27] = "Torso", [28] = "RightArm", [29] = "LeftArm", [30] = "LeftLeg", [31] = "RightLeg", [11] = "Shirt", [12] = "Pants", [2] = "GraphicTShirt"}
 local accMap = {[8] = "Hat", [41] = "Hair", [42] = "Face", [43] = "Neck", [44] = "Shoulder", [45] = "Front", [46] = "Back", [47] = "Waist",
 [64] = "TShirt", [65] = "Shirt", [66] = "Pants", [67] = "Jacket", [68] = "Sweater", [69] = "Shorts", [70] = "LeftShoe", [71] = "RightShoe",
@@ -4498,11 +4507,23 @@ end
 local function search(q)
 local c = cats[cat][2]
 local res = {}
+local sm = sorts[sortI][2]
 local ok = pcall(function()
 local AES = game:GetService("AvatarEditorService")
 local p = CatalogSearchParams.new()
 p.SearchKeyword = q
-p.IncludeOffSale = true
+p.IncludeOffSale = (sm == "ltd")
+local function setEnum(prop, enumName, names)
+for _, n in ipairs(names) do
+local ok2, v = pcall(function() return Enum[enumName][n] end)
+if ok2 and v then pcall(function() p[prop] = v end) return end
+end
+end
+if sm == "fav" then setEnum("SortType", "CatalogSortType", {"MostFavorited"})
+elseif sm == "new" then setEnum("SortType", "CatalogSortType", {"RecentlyCreated"})
+else setEnum("SortType", "CatalogSortType", {"Bestselling", "BestSelling"}) end
+setEnum("SortAggregation", "CatalogSortAggregation", {sm == "sell" and "PastMonth" or "AllTime"})
+if sm == "ltd" then setEnum("CategoryFilter", "CatalogCategoryFilter", {"Collectibles"}) end
 if c == "bundle" then
 p.BundleTypes = {Enum.BundleType.BodyParts}
 elseif c then
@@ -4517,7 +4538,9 @@ end)
 if ok and #res > 0 then return res end
 if httpReq then
 pcall(function()
-local url = "https://catalog.roblox.com/v1/search/items/details?Keyword=" .. HttpS:UrlEncode(q) .. "&Limit=30&IncludeNotForSale=true"
+local sortNum = ({sell = 2, fav = 1, ltd = 2, new = 3})[sm]
+local url = "https://catalog.roblox.com/v1/search/items/details?Keyword=" .. HttpS:UrlEncode(q) .. "&Limit=30&SortType=" .. sortNum
+if sm == "ltd" then url = url .. "&SalesTypeFilter=2&IncludeNotForSale=true" end
 local r = httpReq({Url = url, Method = "GET"})
 local d = HttpS:JSONDecode(r.Body)
 for _, it in ipairs(d.data or {}) do
@@ -4560,6 +4583,20 @@ doSearch()
 end)
 end
 chipBtns[1].BackgroundColor3 = C.purple
+for i, st in ipairs(sorts) do
+local b = button(st[1], 10, sortBar, {
+Size = UDim2.new(0, 0, 1, 0), AutomaticSize = Enum.AutomaticSize.X, BackgroundColor3 = C.panel2, LayoutOrder = i,
+})
+make("UIPadding", {PaddingLeft = UDim.new(0, 12), PaddingRight = UDim.new(0, 12)}, b)
+corner(b, 13)
+sortBtns[i] = b
+b.MouseButton1Click:Connect(function()
+sortI = i
+for j, x in ipairs(sortBtns) do x.BackgroundColor3 = (j == sortI) and C.pink or C.panel2 end
+doSearch()
+end)
+end
+sortBtns[1].BackgroundColor3 = C.pink
 local prevOC = sw.onChange
 sw.onChange = function(v)
 if prevOC then prevOC(v) end
