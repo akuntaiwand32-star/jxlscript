@@ -908,9 +908,9 @@ end)
 relayout()
 end)
 secure("FITUR", function()
-local page = pages["FITUR"]
+local page = pages["PLAYER"]
 local ijOn = false
-makeToggle(page, "Infinity Jump", "Lompat terus di udara", 1, false, function(v) ijOn = v end)
+makeToggle(page, "Infinity Jump", "Lompat terus di udara", 5, false, function(v) ijOn = v end)
 track(UserInputService.JumpRequest:Connect(function()
 if not ijOn then return end
 local hum = getHum()
@@ -938,7 +938,7 @@ end
 changed = {}
 end
 end
-makeToggle(page, "Noclip", "Tembus tembok & objek", 2, false, setNoclip)
+makeToggle(page, "Noclip", "Tembus tembok & objek", 6, false, setNoclip)
 local flySpeed = 50
 local bv, bg, flyConn
 local function stopFly()
@@ -980,11 +980,11 @@ bg.CFrame = cam.CFrame
 end)
 return true
 end
-local _, flyVisual = makeToggle(page, "Fly", "Terbang ikut arah kamera", 3, false, function(v)
+local _, flyVisual = makeToggle(page, "Fly", "Terbang ikut arah kamera", 7, false, function(v)
 if v then return startFly() end
 stopFly()
 end)
-makeNumberRow(page, "KECEPATAN FLY", flySpeed, 4, function(n)
+makeNumberRow(page, "KECEPATAN FLY", flySpeed, 8, function(n)
 flySpeed = math.clamp(n, 1, 500)
 end)
 track(player.CharacterAdded:Connect(function()
@@ -4504,7 +4504,7 @@ makeNumberRow(page, "WALKSPEED", speedVal, 2, function(n) speedVal = math.clamp(
 makeToggle(page, "Jump Power", "Ubah tinggi lompat", 3, false, setJump)
 makeNumberRow(page, "JUMPPOWER", jumpVal, 4, function(n) jumpVal = math.clamp(n, 1, 500) end)
 local resetBtn = button("RESET KARAKTER", 12, page, {
-Size = UDim2.new(1, -6, 0, 34), BackgroundColor3 = C.red, LayoutOrder = 5,
+Size = UDim2.new(1, -6, 0, 34), BackgroundColor3 = C.red, LayoutOrder = 9,
 })
 corner(resetBtn, 10)
 resetBtn.MouseButton1Click:Connect(function()
