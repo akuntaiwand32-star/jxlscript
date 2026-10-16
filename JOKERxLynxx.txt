@@ -235,7 +235,7 @@ sw.MouseButton1Click:Connect(function() set(not state) end)
 if not noSaveToggle[title] then
 Settings.toggles[title] = {set = set, get = function() return state end, def = state}
 end
-return set, visual
+return set, visual, card
 end
 local function makeNumberRow(page, title, default, order, onChange)
 local row = make("Frame", {Size = UDim2.new(1, -6, 0, 38), BackgroundColor3 = C.panel, BackgroundTransparency = 0.35, LayoutOrder = order}, page)
@@ -1640,7 +1640,13 @@ remOn = false
 end
 end)
 secure("EGGALERT", function()
-local page = pages["NOTIF"]
+local mainPage = pages["NOTIF"]
+local eggBody = make("Frame", {
+Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y,
+BackgroundTransparency = 1, LayoutOrder = 2, Visible = false,
+}, mainPage)
+make("UIListLayout", {Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder}, eggBody)
+local page = eggBody
 local swEgg = makeSubWindow("DAFTAR TELUR", "Ketuk + untuk teleport ke telur", 280, 340)
 swEgg.keepOnHide = true
 local swTier = makeSubWindow("PILIH TIER", "Tier yang ditampilkan", 260, 340)
@@ -1829,12 +1835,24 @@ end
 Settings.eggInfo = infoOf
 Settings.tierColor = tierColor
 Settings.eggVisible = function(r) return isOn(r) end
-makeToggle(page, "Pemberitahuan Telur Langka", "Catat telur langka yang muncul di dunia", 1, false, function(v)
+local _, _, eggHdr = makeToggle(mainPage, "Pemberitahuan Telur Langka", "Ketuk untuk buka: notifikasi, curi, tier, daftar", 1, false, function(v)
 on = v
 if v then
 task.spawn(function() pcall(Settings.discoverTiers) end)
 task.spawn(function() Settings.eggScan() end)
 end
+end)
+local eggArrow = label(">", 16, C.muted, eggHdr, {
+Size = UDim2.new(0, 20, 1, 0), Position = UDim2.new(1, -78, 0, 0),
+TextXAlignment = Enum.TextXAlignment.Center,
+})
+local eggExpand = make("TextButton", {
+Text = "", BackgroundTransparency = 1, Size = UDim2.new(1, -60, 1, 0), ZIndex = 2,
+}, eggHdr)
+eggExpand.MouseButton1Click:Connect(function()
+playClick(1)
+eggBody.Visible = not eggBody.Visible
+eggArrow.Text = eggBody.Visible and "v" or ">"
 end)
 makeToggle(page, "Notifikasi di Layar", "Tampilkan tulisan di layar saat telur muncul", 2, true, function(v) showScreen = v end)
 local rb = button("NYALAKAN / MATIKAN SEMUA TIER", 11, swTier.content, {
