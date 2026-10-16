@@ -425,7 +425,7 @@ end)
 end
 end
 end
-for idx, t in ipairs({{"EGG", "EGG"}, {"NOTIF", "NOTIF"}, {"TP / SP", "TPSP"}, {"FITUR", "FITUR"}, {"PLAYER", "PLAYER"}, {"AVATAR", "AVATAR"}, {"MISC", "MISC"}, {"ABYSAL", "ABYSAL"}}) do
+for idx, t in ipairs({{"ITEM", "EGG"}, {"NOTIF", "NOTIF"}, {"TP / SP", "TPSP"}, {"FITUR", "FITUR"}, {"PLAYER", "PLAYER"}, {"AVATAR", "AVATAR"}, {"MISC", "MISC"}, {"ABYSAL", "ABYSAL"}}) do
 newPage(t[2])
 local b = button(t[1], 11, tabBar, {
 Size = UDim2.new(0, 68, 1, 0), BackgroundColor3 = Color3.new(1, 1, 1),
@@ -645,119 +645,8 @@ makeOpenCard(page, "Anti Lag", "Kentang, mode putih & pengaturan lainnya", 2, al
 track(game.DescendantAdded:Connect(function(o)
 if lagOn then pcall(boost, o) end
 end))
-local sfx = {"", "K", "M", "B", "T", "Qa", "Qi", "Sx", "Sp", "Oc", "No", "Dc"}
-local function abbr(n)
-local a, i = math.abs(n), 1
-while a >= 1000 and i < #sfx do a = a / 1000 i = i + 1 end
-local s = (a == math.floor(a)) and tostring(math.floor(a)) or string.format("%.2f", a)
-return (n < 0 and "-" or "") .. s .. sfx[i]
-end
-local function fmtVal(v)
-if type(v) == "number" then return abbr(v) end
-return tostring(v)
-end
-local incomeKeys = {"income", "earn", "profit", "penghasilan", "persec", "per_sec", "rate", "cps", "money", "cash", "coin", "gain"}
-local priceKeys = {"price", "cost", "harga", "value", "worth", "sell"}
-local countKeys = {"amount", "count", "quantity", "qty", "stack", "jumlah"}
-local function matchAny(key, list)
-local k = tostring(key):lower()
-for _, w in ipairs(list) do
-if k:find(w, 1, true) then return true end
-end
-return false
-end
-local function gather(tool)
-local props = {}
-for k, v in pairs(tool:GetAttributes()) do table.insert(props, {k, v}) end
-local n = 0
-for _, d in ipairs(tool:GetDescendants()) do
-if d:IsA("ValueBase") then
-table.insert(props, {d.Name, d.Value})
-n = n + 1
-if n >= 30 then break end
-end
-end
-table.sort(props, function(a, b) return tostring(a[1]) < tostring(b[1]) end)
-return props
-end
-local function heldTool() return findHeld() end
-local function report()
-local tool = heldTool()
-if not tool then return "Tidak ada item yang dipegang.", nil end
-local props = gather(tool)
-local inc, pri, cnt, other = {}, {}, {}, {}
-for _, p in ipairs(props) do
-local txt = tostring(p[1]) .. " = " .. fmtVal(p[2])
-if matchAny(p[1], incomeKeys) then table.insert(inc, txt)
-elseif matchAny(p[1], priceKeys) then table.insert(pri, txt)
-elseif matchAny(p[1], countKeys) then table.insert(cnt, txt)
-else table.insert(other, txt) end
-end
-local nameCount = tool.Name:match("[xX]%s*(%d+)") or tool.Name:match("(%d+)%s*[xX]")
-if nameCount then table.insert(cnt, "dari nama = " .. nameCount) end
-local texts = {}
-for _, d in ipairs(tool:GetDescendants()) do
-if (d:IsA("TextLabel") or d:IsA("TextButton")) and d.Text ~= "" then
-table.insert(texts, d.Text)
-if #texts >= 4 then break end
-end
-end
-local function join(t, empty) return #t > 0 and table.concat(t, ", ") or empty end
-local lines = {
-"Nama: " .. tool.Name,
-"Penghasilan: " .. join(inc, "tidak ditemukan"),
-"Harga: " .. join(pri, "tidak ditemukan"),
-"Jumlah: " .. join(cnt, "tidak ditemukan"),
-}
-if #other > 0 then
-local firstOther = {}
-for i = 1, math.min(#other, 5) do table.insert(firstOther, other[i]) end
-table.insert(lines, "Lainnya: " .. table.concat(firstOther, ", "))
-end
-if #texts > 0 then table.insert(lines, "Teks: " .. table.concat(texts, " | ")) end
-return table.concat(lines, "\n"), tool
-end
-local infoOn = false
-local infoJob = 0
-local infoLbl = label("Nyalakan untuk melihat info item yang dipegang.", 10, C.text, page, {
-Font = Enum.Font.Gotham, Size = UDim2.new(1, -6, 0, 100), TextWrapped = true,
-TextYAlignment = Enum.TextYAlignment.Top, LayoutOrder = 4,
-})
-local function setInfo(v)
-infoOn = v
-infoJob = infoJob + 1
-local my = infoJob
-if not v then infoLbl.Text = "Nyalakan untuk melihat info item yang dipegang." return end
-task.spawn(function()
-while infoOn and infoJob == my do
-local ok, txt = pcall(report)
-infoLbl.Text = ok and txt or ("Error: " .. tostring(txt))
-task.wait(0.5)
-end
-end)
-end
-makeToggle(page, "Cek Item Dipegang", "Harga & penghasilan item di tangan", 3, false, setInfo)
-local dumpBtn = button("DUMP DETAIL KE KONSOL", 12, page, {
-Size = UDim2.new(1, -6, 0, 34), BackgroundColor3 = C.blue, LayoutOrder = 5,
-})
-corner(dumpBtn, 10)
-dumpBtn.MouseButton1Click:Connect(function()
-local tool = heldTool()
-if not tool then infoLbl.Text = "Tidak ada item yang dipegang." return end
-print("[JxL] === item dipegang: " .. tool:GetFullName() .. " (" .. tool.ClassName .. ")")
-for k, v in pairs(tool:GetAttributes()) do print("[JxL] attribute " .. tostring(k) .. " = " .. tostring(v)) end
-for _, d in ipairs(tool:GetDescendants()) do
-local extra = ""
-if d:IsA("ValueBase") then extra = " = " .. tostring(d.Value) end
-if d:IsA("TextLabel") or d:IsA("TextButton") then extra = " text=" .. d.Text end
-print("[JxL]   " .. d:GetFullName() .. " [" .. d.ClassName .. "]" .. extra)
-end
-infoLbl.Text = "Detail item '" .. tool.Name .. "' dicetak ke konsol."
-end)
 miscCleanup = function()
 afkOn = false
-infoOn = false
-infoJob = infoJob + 1
 if lagOn then setLag(false) end
 end
 end)
@@ -1647,7 +1536,7 @@ BackgroundTransparency = 1, LayoutOrder = 2, Visible = false,
 }, mainPage)
 make("UIListLayout", {Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder}, eggBody)
 local page = eggBody
-local swEgg = makeSubWindow("DAFTAR TELUR", "Ketuk + untuk teleport ke telur", 280, 340)
+local swEgg = makeSubWindow("DAFTAR ITEM", "Ketuk + untuk teleport ke item", 280, 340)
 swEgg.keepOnHide = true
 local swTier = makeSubWindow("PILIH TIER", "Tier yang ditampilkan", 260, 340)
 local on = false
@@ -1835,7 +1724,7 @@ end
 Settings.eggInfo = infoOf
 Settings.tierColor = tierColor
 Settings.eggVisible = function(r) return isOn(r) end
-local _, _, eggHdr = makeToggle(mainPage, "Pemberitahuan Telur Langka", "Ketuk untuk buka: notifikasi, curi, tier, daftar", 1, false, function(v)
+local _, _, eggHdr = makeToggle(mainPage, "Pemberitahuan Item Langka", "Ketuk untuk buka: notifikasi, curi, tier, daftar", 1, false, function(v)
 on = v
 if v then
 task.spawn(function() pcall(Settings.discoverTiers) end)
@@ -1854,7 +1743,7 @@ playClick(1)
 eggBody.Visible = not eggBody.Visible
 eggArrow.Text = eggBody.Visible and "v" or ">"
 end)
-makeToggle(page, "Notifikasi di Layar", "Tampilkan tulisan di layar saat telur muncul", 2, true, function(v) showScreen = v end)
+makeToggle(page, "Notifikasi di Layar", "Tampilkan tulisan di layar saat item muncul", 2, true, function(v) showScreen = v end)
 local rb = button("NYALAKAN / MATIKAN SEMUA TIER", 11, swTier.content, {
 Size = UDim2.new(1, -2, 0, 30), BackgroundColor3 = C.panel2, LayoutOrder = 1,
 })
@@ -1864,12 +1753,12 @@ local backBtn = button("KEMBALI KE POSISI TERSIMPAN", 11, page, {
 Size = UDim2.new(1, -2, 0, 30), BackgroundColor3 = C.panel2, LayoutOrder = 7,
 })
 corner(backBtn, 8)
-local tb = button("TELEPORT KE TELUR TERAKHIR", 11, page, {
+local tb = button("TELEPORT KE ITEM TERAKHIR", 11, page, {
 Size = UDim2.new(1, -2, 0, 30), BackgroundColor3 = C.panel2, LayoutOrder = 8,
 })
 corner(tb, 8)
-makeOpenCard(page, "Pilih Tier", "Pilih tier telur yang ditampilkan", 10, swTier)
-makeOpenCard(page, "Daftar Telur", "Telur yang muncul + tombol teleport", 11, swEgg)
+makeOpenCard(page, "Pilih Tier", "Pilih tier item yang ditampilkan", 10, swTier)
+makeOpenCard(page, "Daftar Item", "Item yang muncul + tombol teleport", 11, swEgg)
 local chips, chipN = {}, 0
 local function makeChip(name)
 if chips[name] then return end
@@ -2048,7 +1937,7 @@ toast("Belum ada posisi tersimpan", true)
 end
 end)
 tb.MouseButton1Click:Connect(function()
-if lastPos then plainTp(lastPos) else toast("Belum ada telur yang terdeteksi", true) end
+if lastPos then plainTp(lastPos) else toast("Belum ada item yang terdeteksi", true) end
 end)
 local groups, gorder, eggN = {}, {}, 0
 local function alive(e)
@@ -2181,7 +2070,7 @@ local part = m:IsA("Model") and (m.PrimaryPart or m:FindFirstChildWhichIsA("Base
 if not (part and part:IsA("BasePart")) then return end
 lastModel, lastPos, lastPP, lastPart = m, part.Position, pp, part
 addRow(inf.name, part, r, val, pp)
-toast(string.format("TELUR %s (%s)%s muncul", inf.name, r or "?", val and (" " .. val) or ""))
+toast(string.format("ITEM %s (%s)%s muncul", inf.name, r or "?", val and (" " .. val) or ""))
 end
 local function check(pp)
 if not on or seen[pp] then return end
@@ -2287,9 +2176,9 @@ if on then task.spawn(scan) end
 end)
 end)
 secure("EGGPANEL", function()
-local sw = makeSubWindow("BANTU & TANDA TELUR", "Auto bantu, zona aman & penanda", 300, 340, 0)
+local sw = makeSubWindow("BANTU & TANDA ITEM", "Auto bantu, zona aman & penanda", 300, 340, 0)
 Settings.eggWin = sw
-makeOpenCard(pages["EGG"], "Bantu & Tanda Telur", "Auto bantu teman, zona aman, penanda telur", 2, sw)
+makeOpenCard(pages["EGG"], "Bantu & Tanda Item", "Auto bantu teman, zona aman, penanda item", 2, sw)
 end)
 secure("AREALIST", function()
 local sw = makeSubWindow("TELEPORT AREA", "", 240, 340, 36)
@@ -2537,13 +2426,13 @@ lastTp = os.clock()
 if activeTween then activeTween:Cancel() activeTween = nil end
 if not backCF or (h.Position - friendPos).Magnitude > 40 then backCF = h.CFrame end
 h.CFrame = CFrame.new(friendPos)
-sw.sub.Text = "Telur diambil -> ke teman (" .. why .. ")"
+sw.sub.Text = "Item diambil -> ke teman (" .. why .. ")"
 task.spawn(function()
 task.wait(0.4)
 local done = dropEgg()
 lastTp = os.clock() + 3
 unstick()
-sw.sub.Text = done and "Telur di-drop di tempat teman" or "Drop gagal (tombol Drop tidak ditemukan)"
+sw.sub.Text = done and "Item di-drop di tempat teman" or "Drop gagal (tombol Drop tidak ditemukan)"
 if backOn and backCF then
 task.wait(0.5)
 local h2 = getHRP()
@@ -2566,7 +2455,7 @@ lastTp = os.clock()
 if activeTween then activeTween:Cancel() activeTween = nil end
 if not backCF or (h.Position - safePos).Magnitude > 40 then backCF = h.CFrame end
 h.CFrame = CFrame.new(safePos)
-sw.sub.Text = "Ambil telur -> Zona Aman (" .. why .. ")"
+sw.sub.Text = "Ambil item -> Zona Aman (" .. why .. ")"
 if backOn then
 backJob = backJob + 1
 local my = backJob
@@ -2577,7 +2466,7 @@ if not h2 then return end
 if activeTween then activeTween:Cancel() activeTween = nil end
 h2.CFrame = backCF
 backCF = nil
-sw.sub.Text = "Kembali ke tempat ambil telur"
+sw.sub.Text = "Kembali ke tempat ambil item"
 end)
 end
 end
@@ -2590,7 +2479,7 @@ local function onToolAdded(t)
 if not isEggTool(t) then return end
 if seenTool[t] then return end -- pindah Backpack <-> tangan bukan ambil baru
 seenTool[t] = true
-toSafe("telur diambil")
+toSafe("item diambil")
 end
 local function watch(container)
 if not container then return end
@@ -2611,12 +2500,12 @@ end))
 local lastCarried = tonumber(player:GetAttribute("CarriedEggCount")) or 0
 track(player:GetAttributeChangedSignal("CarriedEggCount"):Connect(function()
 local n = tonumber(player:GetAttribute("CarriedEggCount")) or 0
-if n > lastCarried then toSafe("jumlah telur naik") end
+if n > lastCarried then toSafe("jumlah item naik") end
 lastCarried = n
 end))
-makeToggle(Settings.eggWin.content, "Auto Bantu Teman", "Ambil telur -> ke teman -> drop telur", 2, false, function(v) friendOn = v end)
-makeToggle(Settings.eggWin.content, "Ke Zona Aman saat ambil telur", "Otomatis teleport begitu telur diambil", 3, false, function(v) eggSafe = v end)
-makeToggle(Settings.eggWin.content, "Balik ke tempat ambil telur", "Kembali otomatis setelah dari Zona Aman / teman", 4, false, function(v)
+makeToggle(Settings.eggWin.content, "Auto Bantu Teman", "Ambil item -> ke teman -> drop item", 2, false, function(v) friendOn = v end)
+makeToggle(Settings.eggWin.content, "Ke Zona Aman saat ambil item", "Otomatis teleport begitu item diambil", 3, false, function(v) eggSafe = v end)
+makeToggle(Settings.eggWin.content, "Balik ke tempat ambil item", "Kembali otomatis setelah dari Zona Aman / teman", 4, false, function(v)
 backOn = v
 backJob = backJob + 1
 end)
@@ -2731,7 +2620,7 @@ marks[p] = b
 end
 local lines, col = {}, Color3.fromRGB(255, 220, 80)
 if r then lines[#lines + 1] = relNames[r] col = relColor[r] end
-if egg then lines[#lines + 1] = "TELUR!" end
+if egg then lines[#lines + 1] = "ITEM!" end
 local t = b:FindFirstChild("T")
 if t then
 t.Text = table.concat(lines, "\n")
@@ -2751,7 +2640,7 @@ end
 end)
 track(Players.PlayerRemoving:Connect(function(p) dropMark(p) end))
 track({Disconnect = function() for p in pairs(marks) do dropMark(p) end end})
-makeToggle(Settings.eggWin.content, "Tanda Pembawa Telur", "Tulisan TELUR! di atas kepala pemain yang membawa telur", 10, false, function(v)
+makeToggle(Settings.eggWin.content, "Tanda Pembawa Item", "Tulisan ITEM! di atas kepala pemain yang membawa item", 10, false, function(v)
 eggMark = v
 end)
 local sw = makeSubWindow("TEMAN / MUSUH", "Ketuk nama untuk ganti status", 230, 310, 36)
@@ -2935,7 +2824,7 @@ track({Disconnect = function() clearTags() end})
 Settings.espRefresh = function()
 if espOn then clearTags() task.spawn(scanTags) end
 end
-makeToggle(Settings.eggWin.content, "Penanda Telur di Layar", "Nama, kelangkaan & jarak telur (tembus dinding)", 11, false, function(v)
+makeToggle(Settings.eggWin.content, "Penanda Item di Layar", "Nama, kelangkaan & jarak item (tembus dinding)", 11, false, function(v)
 espOn = v
 if v then task.spawn(scanTags) else clearTags() end
 end)
@@ -3997,7 +3886,7 @@ makeToggle(page, "Hanya Penjaga / NPC", "Putihkan penjaga & NPC saja, area lain 
 cfg.onlyGuard = v
 reapply()
 end)
-makeToggle(page, "Lindungi Area Telur / Item", "Telur, item & sekitarnya tidak diputihkan", 4, true, function(v)
+makeToggle(page, "Lindungi Area Item", "Item & sekitarnya tidak diputihkan", 4, true, function(v)
 cfg.protect = v
 reapply()
 end)
