@@ -782,7 +782,7 @@ make("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, SortOrder =
 local subBtns = {}
 local function relayout()
 local cols = {"SET"}
-if mode ~= "TP" then table.insert(cols, "SP") end
+if mode ~= "TP" then table.insert(cols, "SP") table.insert(cols, "STOP") end
 if mode ~= "SP" then table.insert(cols, "TP") end
 local w = 0.85 / #cols
 for _, r in ipairs(rows) do
@@ -827,7 +827,7 @@ def = 10,
 }
 local head = make("Frame", {Size = UDim2.new(1, -6, 0, 16), BackgroundTransparency = 1, LayoutOrder = 3}, page)
 local hr = {}
-for name, txt in pairs({SET = "SIMPAN", TP = "TELEPORT", SP = "SPEED"}) do
+for name, txt in pairs({SET = "SIMPAN", TP = "TELEPORT", SP = "SPEED", STOP = "STOP"}) do
 hr[name] = label(txt, 12, C.muted, head, {TextXAlignment = Enum.TextXAlignment.Center})
 end
 table.insert(rows, hr)
@@ -842,6 +842,7 @@ local r = {}
 r.SET = button("SET", 13, row, {BackgroundColor3 = C.panel2})
 r.TP = button("TP", 13, row, {BackgroundColor3 = C.panel2})
 r.SP = button("SP", 13, row, {BackgroundColor3 = C.panel2})
+r.STOP = button("STOP", 12, row, {BackgroundColor3 = Color3.fromRGB(190, 50, 60)})
 for _, b in pairs(r) do corner(b, 8) end
 r.SET.MouseButton1Click:Connect(function()
 local hrp = getHRP()
@@ -871,6 +872,17 @@ local dist = (hrp.Position - target.Position).Magnitude
 local dur = math.max(dist / spd, 0.05)
 activeTween = TweenService:Create(hrp, TweenInfo.new(dur, Enum.EasingStyle.Linear), {CFrame = target})
 activeTween:Play()
+end)
+r.STOP.MouseButton1Click:Connect(function()
+if activeTween then activeTween:Cancel() activeTween = nil end
+local hrp = getHRP()
+if hrp then
+pcall(function()
+hrp.AssemblyLinearVelocity = Vector3.zero
+hrp.AssemblyAngularVelocity = Vector3.zero
+end)
+end
+flash(r.STOP, "OK", "STOP")
 end)
 table.insert(rows, r)
 table.insert(slotRows, {r = r, num = numLbl})
@@ -4212,6 +4224,325 @@ end)
 track(player.CharacterAdded:Connect(function()
 if original then pcall(function() original:Destroy() end) end
 original = nil
+end))
+end)
+secure("CATALOG", function()
+local page = pages["AVATAR"]
+local Market = game:GetService("MarketplaceService")
+local HttpS = game:GetService("HttpService")
+local sw = makeSubWindow("KATALOG AVATAR", "Cari item lalu ketuk untuk pakai / lepas", 300, 430, 80)
+sw.keepOnHide = true
+local list = sw.content
+list.Size = UDim2.new(1, -16, 1, -(52 + 80 + 82))
+local searchBox = inputBox("", sw.win, {
+Size = UDim2.new(1, -104, 0, 28), Position = UDim2.new(0, 12, 0, 50), TextSize = 12,
+PlaceholderText = "Cari item katalog...", PlaceholderColor3 = C.muted,
+TextXAlignment = Enum.TextXAlignment.Center,
+})
+local goBtn = button("CARI", 11, sw.win, {
+Size = UDim2.new(0, 80, 0, 28), Position = UDim2.new(1, -92, 0, 50), BackgroundColor3 = C.blue,
+})
+corner(goBtn, 8)
+local chipBar = make("ScrollingFrame", {
+Size = UDim2.new(1, -24, 0, 26), Position = UDim2.new(0, 12, 0, 84), BackgroundTransparency = 1,
+BorderSizePixel = 0, ScrollBarThickness = 0, CanvasSize = UDim2.new(0, 0, 0, 0),
+AutomaticCanvasSize = Enum.AutomaticSize.X, ScrollingDirection = Enum.ScrollingDirection.X,
+}, sw.win)
+make("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder}, chipBar)
+local idBox = inputBox("", sw.win, {
+Size = UDim2.new(1, -112, 0, 30), Position = UDim2.new(0, 12, 1, -76), TextSize = 11,
+PlaceholderText = "Tautan / ID item...", PlaceholderColor3 = C.muted,
+TextXAlignment = Enum.TextXAlignment.Center,
+})
+local useBtn = button("PAKAI", 11, sw.win, {
+Size = UDim2.new(0, 86, 0, 30), Position = UDim2.new(1, -98, 1, -76), BackgroundColor3 = C.purple,
+})
+corner(useBtn, 8)
+local offBtn = button("LEPAS SEMUA", 11, sw.win, {
+Size = UDim2.new(1, -24, 0, 30), Position = UDim2.new(0, 12, 1, -38), BackgroundColor3 = C.panel2,
+})
+corner(offBtn, 8)
+local cats = {
+{"SEMUA", nil},
+{"AKSESORI", {"Hat", "FaceAccessory", "NeckAccessory", "ShoulderAccessory", "FrontAccessory", "BackAccessory", "WaistAccessory"}},
+{"RAMBUT", {"HairAccessory"}},
+{"BAJU", {"Shirt", "TeeShirt", "ShirtAccessory", "TShirtAccessory", "JacketAccessory", "SweaterAccessory"}},
+{"CELANA", {"Pants", "PantsAccessory", "ShortsAccessory", "DressSkirtAccessory"}},
+{"WAJAH", {"Face", "EyebrowAccessory", "EyelashAccessory"}},
+{"BADAN", {"Head", "Torso", "RightArm", "LeftArm", "LeftLeg", "RightLeg"}},
+{"BUNDLE", "bundle"},
+}
+local cat = 1
+local chipBtns = {}
+local slotMap = {[17] = "Head", [18] = "Face", [27] = "Torso", [28] = "RightArm", [29] = "LeftArm", [30] = "LeftLeg", [31] = "RightLeg", [11] = "Shirt", [12] = "Pants", [2] = "GraphicTShirt"}
+local accMap = {[8] = "Hat", [41] = "Hair", [42] = "Face", [43] = "Neck", [44] = "Shoulder", [45] = "Front", [46] = "Back", [47] = "Waist",
+[64] = "TShirt", [65] = "Shirt", [66] = "Pants", [67] = "Jacket", [68] = "Sweater", [69] = "Shorts", [70] = "LeftShoe", [71] = "RightShoe",
+[72] = "DressSkirt", [76] = "Eyebrow", [77] = "Eyelash"}
+local worn = {}        -- {id, slot | acc, layered, bundle}
+local bundleWorn = {}  -- bundleId -> true
+local original
+local busy = false
+local reapply = true
+local rows = {}        -- id -> {card, status, bundle}
+local function say(t) sw.sub.Text = t end
+local function getHum()
+local ch = player.Character
+return ch and ch:FindFirstChildOfClass("Humanoid"), ch
+end
+local function isWorn(id, bundle)
+if bundle then return bundleWorn[id] == true end
+for _, w in ipairs(worn) do if w.id == id then return true end end
+return false
+end
+local function refreshRows()
+for id, r in pairs(rows) do
+if r.card.Parent then
+local on = isWorn(id, r.bundle)
+r.status.Text = on and "DIPAKAI (ketuk untuk lepas)" or (r.bundle and "Bundle - ketuk untuk pakai" or "Ketuk untuk pakai")
+r.status.TextColor3 = on and Color3.fromRGB(90, 220, 130) or C.muted
+end
+end
+end
+local function applyAll()
+local hum, ch = getHum()
+if not hum then return false, "karakter belum siap" end
+if not original then
+local ok, d = pcall(function() return hum:GetAppliedDescription() end)
+if not ok or not d then return false, "tampilan awal tidak terbaca" end
+original = d
+end
+local ok, err = pcall(function()
+local desc = original:Clone()
+local accs = desc:GetAccessories(true)
+for _, w in ipairs(worn) do
+if w.slot then
+desc[w.slot] = w.id
+else
+table.insert(accs, {AssetId = w.id, AccessoryType = Enum.AccessoryType[w.acc], Order = #accs + 1, IsLayered = w.layered})
+end
+end
+desc:SetAccessories(accs, true)
+hum:ApplyDescription(desc)
+end)
+if ok then return true end
+local done = false
+for _, w in ipairs(worn) do
+pcall(function()
+local objs = game:GetObjects("rbxassetid://" .. w.id)
+local o = objs and objs[1]
+if not o then return end
+if o:IsA("Accessory") then hum:AddAccessory(o) done = true
+elseif o:IsA("Shirt") or o:IsA("Pants") or o:IsA("ShirtGraphic") then
+for _, c in ipairs(ch:GetChildren()) do if c.ClassName == o.ClassName then c:Destroy() end end
+o.Parent = ch done = true
+end
+end)
+end
+if done then return true end
+return false, tostring(err)
+end
+local function infoOf(id)
+local ok, info = pcall(function() return Market:GetProductInfo(id, Enum.InfoType.Asset) end)
+if ok and info then return info end
+end
+local function makeEntry(id)
+local info = infoOf(id)
+if not info then return nil, "ID tidak ditemukan" end
+local t = info.AssetTypeId
+if slotMap[t] then return {id = id, slot = slotMap[t]} end
+if accMap[t] then return {id = id, acc = accMap[t], layered = (t >= 64 and t <= 72) or t == 76 or t == 77} end
+return nil, "jenis item tidak didukung"
+end
+local httpReq = (syn and syn.request) or http_request or request or (http and http.request)
+local function bundleAssets(bid)
+if not httpReq then return nil end
+local ok, res = pcall(httpReq, {Url = "https://catalog.roblox.com/v1/bundles/" .. bid .. "/details", Method = "GET"})
+if not ok or not res or not res.Body then return nil end
+local ok2, d = pcall(function() return HttpS:JSONDecode(res.Body) end)
+if not ok2 or type(d) ~= "table" or type(d.items) ~= "table" then return nil end
+local out = {}
+for _, it in ipairs(d.items) do
+if it.type == "Asset" and it.id then table.insert(out, it.id) end
+end
+return out
+end
+local function removeId(id)
+for i = #worn, 1, -1 do if worn[i].id == id then table.remove(worn, i) end end
+end
+local function setWorn(id, bundle, want)
+if busy then say("Tunggu sebentar...") return end
+busy = true
+task.spawn(function()
+local hum = getHum()
+if not hum then say("Karakter belum siap") busy = false return end
+if #worn == 0 then original = nil end
+if bundle then
+if want then
+local ids = bundleAssets(id)
+if not ids or #ids == 0 then say("Isi bundle tidak terbaca") busy = false return end
+local n = 0
+for _, aid in ipairs(ids) do
+local e = makeEntry(aid)
+if e then e.bundle = id removeId(aid) table.insert(worn, e) n = n + 1 end
+end
+if n == 0 then say("Bundle tidak didukung") busy = false return end
+bundleWorn[id] = true
+else
+for i = #worn, 1, -1 do if worn[i].bundle == id then table.remove(worn, i) end end
+bundleWorn[id] = nil
+end
+else
+if want then
+local e, why = makeEntry(id)
+if not e then say("Gagal: " .. tostring(why)) busy = false return end
+removeId(id)
+table.insert(worn, e)
+else
+removeId(id)
+end
+end
+local ok, err = applyAll()
+say(ok and (want and "Terpasang" or "Dilepas") or ("Gagal: " .. tostring(err)))
+busy = false
+refreshRows()
+end)
+end
+local function clearRows()
+for _, r in pairs(rows) do r.card:Destroy() end
+rows = {}
+for _, c in ipairs(list:GetChildren()) do
+if c:IsA("TextLabel") then c:Destroy() end
+end
+end
+local rowN = 0
+local function addRow(id, name, bundle)
+if rows[id] then return end
+rowN = rowN + 1
+local card = make("TextButton", {
+Text = "", Size = UDim2.new(1, -6, 0, 62), BackgroundColor3 = C.panel, BackgroundTransparency = 0.2,
+AutoButtonColor = true, LayoutOrder = rowN,
+}, list)
+corner(card, 10)
+stroke(card, C.purple, 1, 0.45)
+make("ImageLabel", {
+Size = UDim2.new(0, 50, 0, 50), Position = UDim2.new(0, 6, 0, 6), BackgroundColor3 = C.panel2, BorderSizePixel = 0,
+Image = string.format("rbxthumb://type=%s&id=%d&w=150&h=150", bundle and "BundleThumbnail" or "Asset", id),
+}, card)
+label(name, 11, C.text, card, {Size = UDim2.new(1, -70, 0, 28), Position = UDim2.new(0, 62, 0, 4), TextWrapped = true, TextYAlignment = Enum.TextYAlignment.Top, TextXAlignment = Enum.TextXAlignment.Left})
+local st = label("", 10, C.muted, card, {Font = Enum.Font.Gotham, Size = UDim2.new(1, -70, 0, 14), Position = UDim2.new(0, 62, 0, 40), TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd})
+rows[id] = {card = card, status = st, bundle = bundle}
+card.MouseButton1Click:Connect(function() setWorn(id, bundle, not isWorn(id, bundle)) end)
+end
+local function resolveEnums(names)
+local out = {}
+for _, n in ipairs(names) do
+local ok, v = pcall(function() return Enum.AvatarAssetType[n] end)
+if ok and v then table.insert(out, v) end
+end
+return out
+end
+local function search(q)
+local c = cats[cat][2]
+local res = {}
+local ok = pcall(function()
+local AES = game:GetService("AvatarEditorService")
+local p = CatalogSearchParams.new()
+p.SearchKeyword = q
+p.IncludeOffSale = true
+if c == "bundle" then
+p.BundleTypes = {Enum.BundleType.BodyParts}
+elseif c then
+p.AssetTypes = resolveEnums(c)
+end
+local pages = AES:SearchCatalog(p)
+for _, it in ipairs(pages:GetCurrentPage()) do
+local isB = tostring(it.ItemType):find("Bundle", 1, true) ~= nil
+table.insert(res, {id = it.Id, name = it.Name or "?", bundle = isB})
+end
+end)
+if ok and #res > 0 then return res end
+if httpReq then
+pcall(function()
+local url = "https://catalog.roblox.com/v1/search/items/details?Keyword=" .. HttpS:UrlEncode(q) .. "&Limit=30&IncludeNotForSale=true"
+local r = httpReq({Url = url, Method = "GET"})
+local d = HttpS:JSONDecode(r.Body)
+for _, it in ipairs(d.data or {}) do
+table.insert(res, {id = it.id, name = it.name or "?", bundle = it.itemType == "Bundle"})
+end
+end)
+end
+return res
+end
+local searching = false
+local function doSearch()
+local q = searchBox.Text:gsub("^%s+", ""):gsub("%s+$", "")
+if q == "" then say("Ketik kata kunci dulu") return end
+if searching then return end
+searching = true
+say("Mencari...")
+task.spawn(function()
+local res = search(q)
+clearRows()
+for _, it in ipairs(res) do
+if it.id then addRow(it.id, it.name, it.bundle) end
+end
+refreshRows()
+say(#res > 0 and (#res .. " item ditemukan") or "Tidak ada hasil (atau pencarian diblokir game)")
+searching = false
+end)
+end
+goBtn.MouseButton1Click:Connect(doSearch)
+searchBox.FocusLost:Connect(function(enter) if enter then doSearch() end end)
+for i, ct in ipairs(cats) do
+local b = button(ct[1], 10, chipBar, {
+Size = UDim2.new(0, 0, 1, 0), AutomaticSize = Enum.AutomaticSize.X, BackgroundColor3 = C.panel2, LayoutOrder = i,
+})
+make("UIPadding", {PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10)}, b)
+corner(b, 13)
+chipBtns[i] = b
+b.MouseButton1Click:Connect(function()
+cat = i
+for j, x in ipairs(chipBtns) do x.BackgroundColor3 = (j == cat) and C.purple or C.panel2 end
+if searchBox.Text ~= "" then doSearch() end
+end)
+end
+chipBtns[1].BackgroundColor3 = C.purple
+useBtn.MouseButton1Click:Connect(function()
+local t = idBox.Text
+local id = tonumber(t:match("%d+"))
+if not id then say("Isi tautan / ID item dulu") return end
+local bundle = t:lower():find("bundle", 1, true) ~= nil
+setWorn(id, bundle, true)
+idBox.Text = ""
+end)
+offBtn.MouseButton1Click:Connect(function()
+if busy then return end
+busy = true
+task.spawn(function()
+worn, bundleWorn = {}, {}
+local hum = getHum()
+local ok = false
+if hum and original then
+ok = pcall(function() hum:ApplyDescription(original) end)
+end
+original = nil
+say(ok and "Semua item katalog dilepas" or "Dilepas (respawn kalau masih tersisa)")
+busy = false
+refreshRows()
+end)
+end)
+makeOpenCard(page, "Katalog Avatar", "Cari & pakai item katalog (layar sendiri)", 5, sw)
+makeToggle(page, "Pasang Ulang Setelah Respawn", "Item katalog dipasang lagi saat respawn", 6, true, function(v) reapply = v end)
+track(player.CharacterAdded:Connect(function(ch)
+if not reapply or #worn == 0 then return end
+ch:WaitForChild("Humanoid", 10)
+task.wait(1.5)
+original = nil
+local hum = getHum()
+if hum then
+pcall(function() original = hum:GetAppliedDescription() end)
+applyAll()
+end
 end))
 end)
 secure("FAKENICK", function()
