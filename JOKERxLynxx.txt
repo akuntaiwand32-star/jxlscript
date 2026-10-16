@@ -4119,7 +4119,7 @@ end)
 secure("WHITEMODE", function()
 local page = pages["MISC"]
 local on = false
-local cfg = {onlyGuard = false, protect = true, radius = 40}
+local cfg = {onlyGuard = false, protect = true, radius = 12, terrain = true}
 local saved = setmetatable({}, {__mode = "k"})
 local hasPrompt = setmetatable({}, {__mode = "k"})
 local isNpc = setmetatable({}, {__mode = "k"})
@@ -4172,42 +4172,84 @@ if ok and pos then addItem(pos) end
 end
 end
 end
+local stat = {white = 0, item = 0, near = 0, skip = 0}
 local function eligible(p)
-if p:IsA("Terrain") or not p:IsA("BasePart") then return false end
+if p:IsA("Terrain") or not p:IsA("BasePart") then stat.skip = stat.skip + 1 return false end
 local npc, guard, itemHit = false, false, false
-local a = p
-for _ = 1, 8 do
+local a, firstModel = p, true
+for lvl = 1, 8 do
 if not a or a == workspace then break end
 if a:IsA("Model") then
-if Players:GetPlayerFromCharacter(a) then return false end
+if Players:GetPlayerFromCharacter(a) then stat.skip = stat.skip + 1 return false end
 local v = isNpc[a]
 if v == nil then v = a:FindFirstChildOfClass("Humanoid") ~= nil isNpc[a] = v end
 if v then npc = true end
-if cfg.protect then
+if cfg.protect and firstModel and not v then
 local hp = hasPrompt[a]
-if hp == nil then hp = a:FindFirstChildWhichIsA("ProximityPrompt", true) ~= nil hasPrompt[a] = hp end
-if hp and not v then itemHit = true end
+if hp == nil then
+hp = (#a:GetChildren() <= 40) and (a:FindFirstChildWhichIsA("ProximityPrompt", true) ~= nil)
+hasPrompt[a] = hp
 end
+if hp then itemHit = true end
 end
+firstModel = false
+end
+if lvl <= 3 then
 if has(a.Name, guardWords) then guard = true end
 if cfg.protect and has(a.Name, itemWords) then itemHit = true end
+end
 a = a.Parent
 end
-if itemHit then return false end
-if cfg.onlyGuard and not (npc or guard) then return false end
-if cfg.protect and not (npc or guard) and nearItem(p.Position) then return false end
+if itemHit then stat.item = stat.item + 1 return false end
+if cfg.onlyGuard and not (npc or guard) then stat.skip = stat.skip + 1 return false end
+if cfg.protect and not (npc or guard) and nearItem(p.Position) then stat.near = stat.near + 1 return false end
 return true
+end
+local savedX = setmetatable({}, {__mode = "k"}) -- tekstur: inst -> {prop, nilai}
+local function stripTexture(o)
+if savedX[o] then return end
+local prop
+if o:IsA("MeshPart") then prop = "TextureID"
+elseif o:IsA("SpecialMesh") then prop = "TextureId"
+elseif o:IsA("SurfaceAppearance") then prop = "ColorMap"
+elseif o:IsA("Texture") or (o:IsA("Decal") and not (o.Parent and o.Parent.Name == "Head")) then prop = "Transparency" end
+if not prop then return end
+local ok, old = pcall(function() return o[prop] end)
+if not ok then return end
+savedX[o] = {prop, old}
+pcall(function() o[prop] = (prop == "Transparency") and 1 or "" end)
 end
 local function whiten(p)
 if saved[p] then return end
 if not eligible(p) then return end
 saved[p] = {p.Color, p.Material, p.Reflectance, p.CastShadow}
+stat.white = stat.white + 1
 pcall(function()
 p.Color = WHITE
 p.Material = Enum.Material.SmoothPlastic
 p.Reflectance = 0
 p.CastShadow = false
 end)
+for _, c in ipairs(p:GetChildren()) do pcall(stripTexture, c) end
+pcall(stripTexture, p)
+end
+local terrainOld
+local function whiteTerrain(v)
+local T = workspace:FindFirstChildOfClass("Terrain")
+if not T then return end
+if v then
+if terrainOld then return end
+terrainOld = {}
+for _, m in ipairs(Enum.Material:GetEnumItems()) do
+pcall(function()
+terrainOld[m] = T:GetMaterialColor(m)
+T:SetMaterialColor(m, WHITE)
+end)
+end
+elseif terrainOld then
+for m, c in pairs(terrainOld) do pcall(function() T:SetMaterialColor(m, c) end) end
+terrainOld = nil
+end
 end
 local function restoreAll()
 local list = {}
@@ -4218,11 +4260,20 @@ p.Color, p.Material, p.Reflectance, p.CastShadow = s[1], s[2], s[3], s[4]
 end)
 saved[p] = nil
 end
+local lx = {}
+for o, s in pairs(savedX) do lx[o] = s end
+for o, s in pairs(lx) do
+pcall(function() o[s[1]] = s[2] end)
+savedX[o] = nil
+end
+whiteTerrain(false)
 end
 local job = 0
 local function apply()
 job = job + 1
 local my = job
+stat = {white = 0, item = 0, near = 0, skip = 0}
+if cfg.terrain and not cfg.onlyGuard then whiteTerrain(true) end
 task.spawn(function()
 if cfg.protect then buildGrid() end
 local n = 0
@@ -4232,6 +4283,11 @@ if d:IsA("BasePart") then pcall(whiten, d) end
 n = n + 1
 if n % 300 == 0 then task.wait() end
 end
+pcall(function()
+if Settings.toast then
+Settings.toast(string.format("Putih: %d diputihkan, %d dilindungi (item), %d dekat item", stat.white, stat.item, stat.near), true)
+end
+end)
 end)
 end
 local function reapply()
@@ -4248,6 +4304,10 @@ reapply()
 end)
 makeToggle(page, "Lindungi Area Telur / Item", "Telur, item & sekitarnya tidak diputihkan", 46, true, function(v)
 cfg.protect = v
+reapply()
+end)
+makeToggle(page, "Putihkan Terrain", "Pasir / rumput / tanah bawaan map ikut putih", 48, true, function(v)
+cfg.terrain = v
 reapply()
 end)
 makeNumberRow(page, "RADIUS AMAN (stud)", cfg.radius, 47, function(n)
