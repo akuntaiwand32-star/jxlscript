@@ -4303,6 +4303,54 @@ r.status.TextColor3 = on and Color3.fromRGB(90, 220, 130) or C.muted
 end
 end
 end
+local hadSlots = false
+local function findTagged(ch, id)
+for _, c in ipairs(ch:GetChildren()) do
+if c:IsA("Accessory") and c:GetAttribute("JxLCat") == id then return c end
+end
+end
+local function attachAcc(hum, ch, id)
+local ok, objs = pcall(function() return game:GetObjects("rbxassetid://" .. id) end)
+if not ok or type(objs) ~= "table" then return false, "GetObjects diblokir" end
+local acc
+for _, o in ipairs(objs) do
+if o:IsA("Accessory") then acc = o break end
+local d = o:FindFirstChildWhichIsA("Accessory", true)
+if d then acc = d break end
+end
+if not acc then return false, "item bukan aksesori" end
+acc:SetAttribute("JxLCat", id)
+local h = acc:FindFirstChild("Handle")
+if h then
+for _, w in ipairs(h:GetChildren()) do
+if w:IsA("Weld") or w:IsA("WeldConstraint") or w:IsA("Motor6D") then w:Destroy() end
+end
+end
+pcall(function() hum:AddAccessory(acc) end)
+if not acc.Parent then acc.Parent = ch end
+task.wait()
+local function welded()
+if not h then return false end
+for _, w in ipairs(h:GetChildren()) do
+if (w:IsA("Weld") or w:IsA("Motor6D")) and w.Part1 and w.Part1:IsDescendantOf(ch) then return true end
+end
+return false
+end
+if welded() then return true end
+local att = h and h:FindFirstChildOfClass("Attachment")
+if not att then return false, "aksesori tanpa attachment" end
+for _, d in ipairs(ch:GetDescendants()) do
+if d:IsA("Attachment") and d.Name == att.Name and d.Parent ~= h and not d:IsDescendantOf(acc) then
+local weld = Instance.new("Weld")
+weld.Name = "AccessoryWeld"
+weld.Part0, weld.Part1 = h, d.Parent
+weld.C0, weld.C1 = att.CFrame, d.CFrame
+weld.Parent = h
+return true
+end
+end
+return false, "titik tempel tidak ditemukan"
+end
 local function applyAll()
 local hum, ch = getHum()
 if not hum then return false, "karakter belum siap" end
@@ -4311,35 +4359,33 @@ local ok, d = pcall(function() return hum:GetAppliedDescription() end)
 if not ok or not d then return false, "tampilan awal tidak terbaca" end
 original = d
 end
-local ok, err = pcall(function()
+local anySlot = false
+for _, w in ipairs(worn) do if w.slot then anySlot = true end end
+if anySlot or hadSlots then
+pcall(function()
 local desc = original:Clone()
-local accs = desc:GetAccessories(true)
 for _, w in ipairs(worn) do
-if w.slot then
-desc[w.slot] = w.id
-else
-table.insert(accs, {AssetId = w.id, AccessoryType = Enum.AccessoryType[w.acc], Order = #accs + 1, IsLayered = w.layered})
+if w.slot then desc[w.slot] = w.id end
 end
-end
-desc:SetAccessories(accs, true)
 hum:ApplyDescription(desc)
 end)
-if ok then return true end
-local done = false
+hadSlots = anySlot
+end
+local keep = {}
+for _, w in ipairs(worn) do if w.acc then keep[w.id] = true end end
+for _, c in ipairs(ch:GetChildren()) do
+local tag = c:IsA("Accessory") and c:GetAttribute("JxLCat")
+if tag and not keep[tag] then c:Destroy() end
+end
+local failWhy
 for _, w in ipairs(worn) do
-pcall(function()
-local objs = game:GetObjects("rbxassetid://" .. w.id)
-local o = objs and objs[1]
-if not o then return end
-if o:IsA("Accessory") then hum:AddAccessory(o) done = true
-elseif o:IsA("Shirt") or o:IsA("Pants") or o:IsA("ShirtGraphic") then
-for _, c in ipairs(ch:GetChildren()) do if c.ClassName == o.ClassName then c:Destroy() end end
-o.Parent = ch done = true
+if w.acc and not findTagged(ch, w.id) then
+local ok, why = attachAcc(hum, ch, w.id)
+if not ok then failWhy = why end
 end
-end)
 end
-if done then return true end
-return false, tostring(err)
+if failWhy then return false, failWhy end
+return true
 end
 local function infoOf(id)
 local ok, info = pcall(function() return Market:GetProductInfo(id, Enum.InfoType.Asset) end)
@@ -4402,6 +4448,14 @@ removeId(id)
 end
 end
 local ok, err = applyAll()
+if not ok and want then
+if bundle then
+for i = #worn, 1, -1 do if worn[i].bundle == id then table.remove(worn, i) end end
+bundleWorn[id] = nil
+else
+removeId(id)
+end
+end
 say(ok and (want and "Terpasang" or "Dilepas") or ("Gagal: " .. tostring(err)))
 busy = false
 refreshRows()
@@ -4524,11 +4578,17 @@ if busy then return end
 busy = true
 task.spawn(function()
 worn, bundleWorn = {}, {}
-local hum = getHum()
+local hum, ch = getHum()
 local ok = false
-if hum and original then
-ok = pcall(function() hum:ApplyDescription(original) end)
+if ch then
+for _, c in ipairs(ch:GetChildren()) do
+if c:IsA("Accessory") and c:GetAttribute("JxLCat") then c:Destroy() ok = true end
 end
+end
+if hum and original and hadSlots then
+ok = pcall(function() hum:ApplyDescription(original) end) or ok
+end
+hadSlots = false
 original = nil
 say(ok and "Semua item katalog dilepas" or "Dilepas (respawn kalau masih tersisa)")
 busy = false
@@ -4542,6 +4602,7 @@ if not reapply or #worn == 0 then return end
 ch:WaitForChild("Humanoid", 10)
 task.wait(1.5)
 original = nil
+hadSlots = false
 local hum = getHum()
 if hum then
 pcall(function() original = hum:GetAppliedDescription() end)
