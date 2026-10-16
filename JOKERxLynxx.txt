@@ -4230,10 +4230,10 @@ secure("CATALOG", function()
 local page = pages["AVATAR"]
 local Market = game:GetService("MarketplaceService")
 local HttpS = game:GetService("HttpService")
-local sw = makeSubWindow("KATALOG AVATAR", "Cari item lalu ketuk untuk pakai / lepas", 300, 430, 80)
+local sw = makeSubWindow("KATALOG AVATAR", "Cari item lalu ketuk untuk pakai / lepas", 300, 320, 80)
 sw.keepOnHide = true
 local list = sw.content
-list.Size = UDim2.new(1, -16, 1, -(52 + 80 + 82))
+list.Size = UDim2.new(1, -16, 1, -(52 + 80 + 44))
 local searchBox = inputBox("", sw.win, {
 Size = UDim2.new(1, -104, 0, 28), Position = UDim2.new(0, 12, 0, 50), TextSize = 12,
 PlaceholderText = "Cari item katalog...", PlaceholderColor3 = C.muted,
@@ -4250,16 +4250,16 @@ AutomaticCanvasSize = Enum.AutomaticSize.X, ScrollingDirection = Enum.ScrollingD
 }, sw.win)
 make("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder}, chipBar)
 local idBox = inputBox("", sw.win, {
-Size = UDim2.new(1, -112, 0, 30), Position = UDim2.new(0, 12, 1, -76), TextSize = 11,
-PlaceholderText = "Tautan / ID item...", PlaceholderColor3 = C.muted,
+Size = UDim2.new(1, -176, 0, 30), Position = UDim2.new(0, 12, 1, -38), TextSize = 11,
+PlaceholderText = "Tautan / ID...", PlaceholderColor3 = C.muted,
 TextXAlignment = Enum.TextXAlignment.Center,
 })
 local useBtn = button("PAKAI", 11, sw.win, {
-Size = UDim2.new(0, 86, 0, 30), Position = UDim2.new(1, -98, 1, -76), BackgroundColor3 = C.purple,
+Size = UDim2.new(0, 70, 0, 30), Position = UDim2.new(1, -158, 1, -38), BackgroundColor3 = C.purple,
 })
 corner(useBtn, 8)
-local offBtn = button("LEPAS SEMUA", 11, sw.win, {
-Size = UDim2.new(1, -24, 0, 30), Position = UDim2.new(0, 12, 1, -38), BackgroundColor3 = C.panel2,
+local offBtn = button("LEPAS SEMUA", 10, sw.win, {
+Size = UDim2.new(0, 80, 0, 30), Position = UDim2.new(1, -88, 1, -38), BackgroundColor3 = C.panel2,
 })
 corner(offBtn, 8)
 local cats = {
@@ -4476,7 +4476,6 @@ end
 local searching = false
 local function doSearch()
 local q = searchBox.Text:gsub("^%s+", ""):gsub("%s+$", "")
-if q == "" then say("Ketik kata kunci dulu") return end
 if searching then return end
 searching = true
 say("Mencari...")
@@ -4487,7 +4486,7 @@ for _, it in ipairs(res) do
 if it.id then addRow(it.id, it.name, it.bundle) end
 end
 refreshRows()
-say(#res > 0 and (#res .. " item ditemukan") or "Tidak ada hasil (atau pencarian diblokir game)")
+say(#res > 0 and (#res .. " item ditemukan") or "Katalog tidak bisa dibaca di game ini. Pakai kolom Tautan / ID.")
 searching = false
 end)
 end
@@ -4503,10 +4502,15 @@ chipBtns[i] = b
 b.MouseButton1Click:Connect(function()
 cat = i
 for j, x in ipairs(chipBtns) do x.BackgroundColor3 = (j == cat) and C.purple or C.panel2 end
-if searchBox.Text ~= "" then doSearch() end
+doSearch()
 end)
 end
 chipBtns[1].BackgroundColor3 = C.purple
+local prevOC = sw.onChange
+sw.onChange = function(v)
+if prevOC then prevOC(v) end
+if v and next(rows) == nil then doSearch() end
+end
 useBtn.MouseButton1Click:Connect(function()
 local t = idBox.Text
 local id = tonumber(t:match("%d+"))
