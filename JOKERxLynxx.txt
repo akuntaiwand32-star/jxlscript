@@ -765,6 +765,7 @@ secure("TP/SP", function()
 local page = pages["TPSP"]
 local mode = "TPSP" -- TP | SP | TPSP
 local spd = 10
+local SP_SCALE = 5 -- angka 10 = 50 stud/detik (lumayan cepat)
 local saved = {}
 local rows = {}
 local slotRows = {}
@@ -785,7 +786,7 @@ make("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, SortOrder =
 local subBtns = {}
 local function relayout()
 local cols = {"SET"}
-if mode ~= "TP" then table.insert(cols, "SP") table.insert(cols, "STOP") end
+if mode ~= "TP" then table.insert(cols, "SP") end
 if mode ~= "SP" then table.insert(cols, "TP") end
 local w = 0.85 / #cols
 for _, r in ipairs(rows) do
@@ -830,7 +831,7 @@ def = 10,
 }
 local head = make("Frame", {Size = UDim2.new(1, -6, 0, 16), BackgroundTransparency = 1, LayoutOrder = 3}, page)
 local hr = {}
-for name, txt in pairs({SET = "SIMPAN", TP = "TELEPORT", SP = "SPEED", STOP = "STOP"}) do
+for name, txt in pairs({SET = "SIMPAN", TP = "TELEPORT", SP = "SPEED"}) do
 hr[name] = label(txt, 12, C.muted, head, {TextXAlignment = Enum.TextXAlignment.Center})
 end
 table.insert(rows, hr)
@@ -842,10 +843,14 @@ BackgroundColor3 = C.panel2, BackgroundTransparency = 0.4,
 })
 corner(numLbl, 8)
 local r = {}
+local baseColor, curTween
+local function setSPLabel(on)
+r.SP.Text = on and "STOP" or "SP"
+r.SP.BackgroundColor3 = on and Color3.fromRGB(190, 50, 60) or (baseColor or C.panel2)
+end
 r.SET = button("SET", 13, row, {BackgroundColor3 = C.panel2})
 r.TP = button("TP", 13, row, {BackgroundColor3 = C.panel2})
 r.SP = button("SP", 13, row, {BackgroundColor3 = C.panel2})
-r.STOP = button("STOP", 12, row, {BackgroundColor3 = Color3.fromRGB(190, 50, 60)})
 for _, b in pairs(r) do corner(b, 8) end
 r.SET.MouseButton1Click:Connect(function()
 local hrp = getHRP()
@@ -855,9 +860,10 @@ local col = slotColors[(i - 1) % #slotColors + 1]
 numLbl.BackgroundColor3 = col
 numLbl.BackgroundTransparency = 0
 numLbl.TextColor3 = Color3.new(1, 1, 1)
+baseColor = col
 r.SET.BackgroundColor3 = col
 r.TP.BackgroundColor3 = col
-r.SP.BackgroundColor3 = col
+if not curTween then r.SP.BackgroundColor3 = col end
 flash(r.SET, "OK", "SET")
 end)
 r.TP.MouseButton1Click:Connect(function()
@@ -868,27 +874,37 @@ hrp.CFrame = saved[i]
 end)
 r.SP.MouseButton1Click:Connect(function()
 local hrp = getHRP()
-local target = saved[i]
-if not hrp or not target then flash(r.SP, "X", "SP") return end
-if activeTween then activeTween:Cancel() end
-local dist = (hrp.Position - target.Position).Magnitude
-local dur = math.max(dist / spd, 0.05)
-activeTween = TweenService:Create(hrp, TweenInfo.new(dur, Enum.EasingStyle.Linear), {CFrame = target})
-activeTween:Play()
-end)
-r.STOP.MouseButton1Click:Connect(function()
+if curTween then
+-- sedang bergerak dari slot ini: tombol SP berubah jadi STOP
 if activeTween then activeTween:Cancel() activeTween = nil end
-local hrp = getHRP()
 if hrp then
 pcall(function()
 hrp.AssemblyLinearVelocity = Vector3.zero
 hrp.AssemblyAngularVelocity = Vector3.zero
 end)
 end
-flash(r.STOP, "OK", "STOP")
+return
+end
+local target = saved[i]
+if not hrp or not target then flash(r.SP, "X", "SP") return end
+if activeTween then activeTween:Cancel() end
+local dist = (hrp.Position - target.Position).Magnitude
+local dur = math.max(dist / (spd * SP_SCALE), 0.05)
+local tw = TweenService:Create(hrp, TweenInfo.new(dur, Enum.EasingStyle.Linear), {CFrame = target})
+activeTween = tw
+curTween = tw
+setSPLabel(true)
+tw.Completed:Connect(function()
+if curTween == tw then
+curTween = nil
+setSPLabel(false)
+end
+if activeTween == tw then activeTween = nil end
+end)
+tw:Play()
 end)
 table.insert(rows, r)
-table.insert(slotRows, {r = r, num = numLbl})
+table.insert(slotRows, {r = r, num = numLbl, clear = function() baseColor = nil end})
 end
 local resetAll = button("RESET SEMUA POS", 13, page, {
 Size = UDim2.new(1, -6, 0, 34), BackgroundColor3 = Color3.fromRGB(190, 50, 60), LayoutOrder = 20,
@@ -898,6 +914,7 @@ resetAll.MouseButton1Click:Connect(function()
 saved = {}
 if activeTween then activeTween:Cancel() activeTween = nil end
 for _, e in ipairs(slotRows) do
+e.clear()
 for _, n in ipairs({"SET", "TP", "SP"}) do e.r[n].BackgroundColor3 = C.panel2 end
 e.num.BackgroundColor3 = C.panel2
 e.num.BackgroundTransparency = 0.4
@@ -908,9 +925,9 @@ end)
 relayout()
 end)
 secure("FITUR", function()
-local page = pages["FITUR"]
+local page = pages["PLAYER"]
 local ijOn = false
-makeToggle(page, "Infinity Jump", "Lompat terus di udara", 1, false, function(v) ijOn = v end)
+makeToggle(page, "Infinity Jump", "Lompat terus di udara", 5, false, function(v) ijOn = v end)
 track(UserInputService.JumpRequest:Connect(function()
 if not ijOn then return end
 local hum = getHum()
@@ -938,7 +955,7 @@ end
 changed = {}
 end
 end
-makeToggle(page, "Noclip", "Tembus tembok & objek", 2, false, setNoclip)
+makeToggle(page, "Noclip", "Tembus tembok & objek", 6, false, setNoclip)
 local flySpeed = 50
 local bv, bg, flyConn
 local function stopFly()
@@ -980,11 +997,11 @@ bg.CFrame = cam.CFrame
 end)
 return true
 end
-local _, flyVisual = makeToggle(page, "Fly", "Terbang ikut arah kamera", 3, false, function(v)
+local _, flyVisual = makeToggle(page, "Fly", "Terbang ikut arah kamera", 7, false, function(v)
 if v then return startFly() end
 stopFly()
 end)
-makeNumberRow(page, "KECEPATAN FLY", flySpeed, 4, function(n)
+makeNumberRow(page, "KECEPATAN FLY", flySpeed, 8, function(n)
 flySpeed = math.clamp(n, 1, 500)
 end)
 track(player.CharacterAdded:Connect(function()
@@ -1021,13 +1038,14 @@ OutlineColor = Color3.new(1, 1, 1), DepthMode = Enum.HighlightDepthMode.AlwaysOn
 local head = ch:FindFirstChild("Head")
 if head then
 o.bb = make("BillboardGui", {
-Adornee = head, Size = UDim2.new(0, 120, 0, 20), StudsOffset = Vector3.new(0, 2.5, 0),
+Adornee = head, Size = UDim2.new(0, 140, 0, 32), StudsOffset = Vector3.new(0, 2.8, 0),
 AlwaysOnTop = true,
 }, gui)
-label(p.DisplayName, 12, C.text, o.bb, {
+o.lbl = label(p.DisplayName, 12, C.text, o.bb, {
 Size = UDim2.new(1, 0, 1, 0), TextXAlignment = Enum.TextXAlignment.Center,
-TextStrokeTransparency = 0.4,
+TextStrokeTransparency = 0.4, TextWrapped = true,
 })
+o.root = ch:FindFirstChild("HumanoidRootPart") or head
 end
 objs[p] = o
 end
@@ -1042,6 +1060,23 @@ end
 for _, p in ipairs(Players:GetPlayers()) do if p ~= player then hook(p) end end
 track(Players.PlayerAdded:Connect(hook))
 track(Players.PlayerRemoving:Connect(clearOne))
+local espAcc = 0
+track(RunService.Heartbeat:Connect(function(dt)
+if not espOn then return end
+espAcc = espAcc + dt
+if espAcc < 0.1 then return end
+espAcc = 0
+local myRoot = getHRP()
+for p, o in pairs(objs) do
+if o.lbl and o.lbl.Parent then
+local dist = "?"
+if myRoot and o.root and o.root.Parent then
+dist = tostring(math.floor((myRoot.Position - o.root.Position).Magnitude))
+end
+o.lbl.Text = p.DisplayName .. "\n[" .. dist .. " stud]"
+end
+end
+end))
 local function setESP(v)
 espOn = v
 if v then
@@ -1050,10 +1085,10 @@ else
 for p in pairs(objs) do clearOne(p) end
 end
 end
-makeToggle(page, "ESP", "Sorot & nama semua pemain", 5, false, setESP)
+makeToggle(page, "ESP", "Sorot, nama & jarak semua pemain", 5, false, setESP)
 espCleanup = function() setESP(false) end
 end)
-secure("InstantPP", function()
+secure("AMBILCEPAT", function()
 local page = pages["EGG"]
 local on = false
 local job = 0
@@ -1092,7 +1127,7 @@ end))
 track(PPS.PromptButtonHoldBegan:Connect(function(p)
 if on then pcall(function() fireproximityprompt(p) end) end
 end))
-makeToggle(page, "Instant PP", "Prompt interaksi tanpa ditahan", 6, false, setPP)
+makeToggle(page, "Ambil Cepat", "Prompt interaksi tanpa ditahan", 6, false, setPP)
 instantCleanup = function() setPP(false) end
 end)
 secure("TPLIST", function()
@@ -1844,9 +1879,9 @@ c.refresh()
 end
 addChip = makeChip
 makeChip(UNK)
-makeToggle(page, "Curi Langsung (Tanpa Teleport)", "Ketuk + langsung curi dari tempatmu", 5, true, function(v) autoSteal = v end)
+makeToggle(page, "Curi Langsung (Tanpa Teleport)", "ON: curi dari jauh, OFF: teleport", 5, true, function(v) autoSteal = v end)
 makeToggle(page, "Teleport Jika Gagal", "Kalau curi jarak jauh gagal, teleport lalu curi", 9, true, function(v) fallbackTp = v end)
-makeToggle(page, "Kembali Setelah Curi", "Balik ke posisi tersimpan (saat teleport)", 6, true, function(v) returnAfter = v end)
+makeToggle(page, "Kembali Setelah Curi", "Balik ke posisi awal (saat teleport)", 6, true, function(v) returnAfter = v end)
 local function invSig()
 local n = tonumber(player:GetAttribute("CarriedEggCount")) or 0
 for _, c in ipairs({player.Character, player:FindFirstChildOfClass("Backpack")}) do
@@ -1936,15 +1971,42 @@ end)
 end
 return ok
 end
+local lastDest
+local function rememberPos(h)
+if not savePos then return end
+-- jangan timpa posisi asli kalau kita masih di dekat tujuan teleport sebelumnya
+if savedCF and lastDest and (h.Position - lastDest).Magnitude < 40 then return end
+savedCF = h.CFrame
+end
 local function plainTp(pos)
 local h = getHRP()
 if not h then return end
-if savePos then savedCF = h.CFrame end
-h.CFrame = CFrame.new(pos + Vector3.new(0, 4, 0))
+rememberPos(h)
+lastDest = pos + Vector3.new(0, 4, 0)
+h.CFrame = CFrame.new(lastDest)
+end
+local function teleportSteal(pos, pp, part, onOk)
+local h = getHRP()
+if not h then return end
+local origin = h.CFrame
+rememberPos(h)
+local back = (savePos and savedCF) or origin
+lastDest = pos + Vector3.new(0, 4, 0)
+h.CFrame = CFrame.new(lastDest)
+local ok2 = stealNow(pp, part)
+if returnAfter then
+local h2 = getHRP()
+if h2 then h2.CFrame = back end
+end
+if ok2 and onOk then onOk() end
+toast(ok2 and "Item masuk inventaris (setelah teleport)" or "Gagal: item belum masuk inventaris (mungkin sudah diambil / jarak)", true)
 end
 local function goTo(pos, pp, part, onOk)
-if not autoSteal then plainTp(pos) return end
 task.spawn(function()
+if not autoSteal then
+teleportSteal(pos, pp, part, onOk)
+return
+end
 local ok = stealNow(pp, part, true)
 if ok then
 toast("Item masuk inventaris (tanpa teleport)", true)
@@ -1955,17 +2017,7 @@ if not fallbackTp then
 toast("Item belum masuk inventaris dari jauh. Nyalakan 'Teleport Jika Gagal'.", true)
 return
 end
-local h = getHRP()
-if not h then return end
-if savePos then savedCF = h.CFrame end
-h.CFrame = CFrame.new(pos + Vector3.new(0, 4, 0))
-local ok2 = stealNow(pp, part)
-if returnAfter and savedCF then
-local h2 = getHRP()
-if h2 then h2.CFrame = savedCF end
-end
-if ok2 and onOk then onOk() end
-toast(ok2 and "Item masuk inventaris (setelah teleport)" or "Gagal: item belum masuk inventaris (mungkin sudah diambil / jarak)", true)
+teleportSteal(pos, pp, part, onOk)
 end)
 end
 backBtn.MouseButton1Click:Connect(function()
@@ -4486,7 +4538,7 @@ makeNumberRow(page, "WALKSPEED", speedVal, 2, function(n) speedVal = math.clamp(
 makeToggle(page, "Jump Power", "Ubah tinggi lompat", 3, false, setJump)
 makeNumberRow(page, "JUMPPOWER", jumpVal, 4, function(n) jumpVal = math.clamp(n, 1, 500) end)
 local resetBtn = button("RESET KARAKTER", 12, page, {
-Size = UDim2.new(1, -6, 0, 34), BackgroundColor3 = C.red, LayoutOrder = 5,
+Size = UDim2.new(1, -6, 0, 34), BackgroundColor3 = C.red, LayoutOrder = 9,
 })
 corner(resetBtn, 10)
 resetBtn.MouseButton1Click:Connect(function()
