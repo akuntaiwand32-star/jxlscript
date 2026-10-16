@@ -3337,16 +3337,18 @@ end
 end
 makeOpenCard(pages["FITUR"], "Radar Area", "Peta 2D semua area, atau per area", 36, sw)
 end)
-secure("DEX", function()
+secure("INFOAKUN", function()
 local CollectionService = game:GetService("CollectionService")
-local sw = makeSubWindow("DEX", "Explorer & Properties", 310, 360, 58)
+local sw = makeSubWindow("NIMEROAHUB", "Properti, detail & pengaturan", 310, 360, 58)
 sw.keepOnHide = true
 local list = sw.content
 list.Size = UDim2.new(1, -16, 1, -(52 + 58 + 40))
-local tabE = button("EXPLORER", 11, sw.win, {Size = UDim2.new(0.5, -16, 0, 26), Position = UDim2.new(0, 12, 0, 50), BackgroundColor3 = C.purple})
+local tabE = button("PROPERTI", 11, sw.win, {Size = UDim2.new(1 / 3, -8, 0, 26), Position = UDim2.new(0, 12, 0, 50), BackgroundColor3 = C.purple})
 corner(tabE, 8)
-local tabP = button("PROPERTI", 11, sw.win, {Size = UDim2.new(0.5, -16, 0, 26), Position = UDim2.new(0.5, 4, 0, 50), BackgroundColor3 = C.panel2})
+local tabP = button("DETAIL", 11, sw.win, {Size = UDim2.new(1 / 3, -8, 0, 26), Position = UDim2.new(1 / 3, 6, 0, 50), BackgroundColor3 = C.panel2})
 corner(tabP, 8)
+local tabS = button("SETTING", 11, sw.win, {Size = UDim2.new(1 / 3, -8, 0, 26), Position = UDim2.new(2 / 3, 0, 0, 50), BackgroundColor3 = C.panel2})
+corner(tabS, 8)
 local search = inputBox("", sw.win, {
 Size = UDim2.new(1, -24, 0, 24), Position = UDim2.new(0, 12, 0, 80), TextSize = 11,
 PlaceholderText = "Cari instance...", PlaceholderColor3 = C.muted, TextXAlignment = Enum.TextXAlignment.Center,
@@ -3360,6 +3362,7 @@ return b
 end
 local bTp, bClone, bDel, bCopy, bRef = act("TP", 1), act("KLON", 2), act("HAPUS", 3, Color3.fromRGB(190, 50, 60)), act("SALIN", 4), act("REFRESH", 5)
 local mode = "E"
+local cfg = {auto = true, interval = 0.8, attrs = true, tags = true, confirmDel = true, showClass = true, maxRows = 300}
 local selected
 local expanded = {}
 local pRows = {}
@@ -3461,11 +3464,12 @@ local PD = {
 }
 local readOnly = {ClassName = true, Mass = true, AccountAge = true, UserId = true, WorldPosition = true, MembershipType = true, RootPart = true, Character = true, CurrentCamera = true, StreamingEnabled = true}
 local function propRow(order, name, get, set, ro)
-local row = make("Frame", {Size = UDim2.new(1, -4, 0, 28), BackgroundColor3 = C.panel, BackgroundTransparency = 0.45, LayoutOrder = order}, list)
-corner(row, 6)
+local row = make("Frame", {Size = UDim2.new(1, -4, 0, 30), BackgroundColor3 = C.panel, BackgroundTransparency = 0.35, LayoutOrder = order}, list)
+corner(row, 8)
+stroke(row, C.purple, 1, 0.5)
 label(name, 11, C.muted, row, {Size = UDim2.new(0.42, -6, 1, 0), Position = UDim2.new(0, 8, 0, 0), TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd})
-local box = inputBox("", row, {Size = UDim2.new(0.58, -8, 1, -6), Position = UDim2.new(0.42, 0, 0, 3), TextSize = 11})
-local btn = button("", 11, row, {Size = UDim2.new(0.58, -8, 1, -6), Position = UDim2.new(0.42, 0, 0, 3), BackgroundColor3 = C.panel2})
+local box = inputBox("", row, {Size = UDim2.new(0.58, -8, 1, -8), Position = UDim2.new(0.42, 0, 0, 4), TextSize = 11})
+local btn = button("", 11, row, {Size = UDim2.new(0.58, -8, 1, -8), Position = UDim2.new(0.42, 0, 0, 4), BackgroundColor3 = C.panel2})
 corner(btn, 6)
 local function update()
 local ok, v = pcall(get)
@@ -3518,14 +3522,16 @@ update()
 table.insert(pRows, update)
 end
 local function header(txt, order)
-label(txt, 11, C.pink, list, {Size = UDim2.new(1, -4, 0, 20), LayoutOrder = order, TextXAlignment = Enum.TextXAlignment.Left})
+local hb = make("Frame", {Size = UDim2.new(1, -4, 0, 22), BackgroundColor3 = C.purple, BackgroundTransparency = 0.7, LayoutOrder = order}, list)
+corner(hb, 6)
+label(txt, 11, C.text, hb, {Position = UDim2.new(0, 10, 0, 0), TextXAlignment = Enum.TextXAlignment.Left})
 end
 local function renderProps()
 clearList()
 pRows = {}
 local inst = selected
 if not inst or (inst ~= game and not inst.Parent) then
-msg("Pilih instance di tab EXPLORER dulu (ketuk namanya).")
+msg("Pilih instance di tab PROPERTI dulu (ketuk namanya).")
 return
 end
 local q = search.Text:lower()
@@ -3562,7 +3568,7 @@ end
 end
 end
 local okA, attrs = pcall(function() return inst:GetAttributes() end)
-if okA and attrs then
+if okA and attrs and cfg.attrs then
 local keys = {}
 for k in pairs(attrs) do if q == "" or tostring(k):lower():find(q, 1, true) then table.insert(keys, k) end end
 table.sort(keys)
@@ -3576,7 +3582,7 @@ end
 end
 end
 local okT, tags = pcall(function() return CollectionService:GetTags(inst) end)
-if okT and tags and #tags > 0 and q == "" then
+if okT and tags and #tags > 0 and q == "" and cfg.tags then
 order = order + 1
 header("TAGS", order)
 for _, tg in ipairs(tags) do
@@ -3586,7 +3592,6 @@ end
 end
 if order <= 2 then msg("Tidak ada properti yang cocok.", 3) end
 end
-local MAXROWS = 300
 local function jumpTo(inst)
 local o = inst.Parent
 while o and o ~= game do expanded[o] = true o = o.Parent end
@@ -3596,10 +3601,11 @@ local renderTree
 local function treeRow(n, inst, depth, hasKids)
 local sel = (inst == selected)
 local row = make("TextButton", {
-Text = "", Size = UDim2.new(1, -4, 0, 26), BackgroundColor3 = sel and C.purple or C.panel,
-BackgroundTransparency = sel and 0.3 or 0.5, AutoButtonColor = true, LayoutOrder = n,
+Text = "", Size = UDim2.new(1, -4, 0, 28), BackgroundColor3 = sel and C.purple or C.panel,
+BackgroundTransparency = sel and 0.3 or 0.4, AutoButtonColor = true, LayoutOrder = n,
 }, list)
-corner(row, 6)
+corner(row, 8)
+stroke(row, sel and C.pink or C.purple, 1, sel and 0.1 or 0.55)
 local indent = depth * 12
 if hasKids then
 local ar = button(expanded[inst] and "v" or ">", 12, row, {
@@ -3614,7 +3620,7 @@ local nm = label("", 11, C.text, row, {
 Size = UDim2.new(1, -(30 + indent), 1, 0), Position = UDim2.new(0, 26 + indent, 0, 0),
 TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd, RichText = true,
 })
-nm.Text = esc(inst.Name) .. '  <font color="#8b8ba8" size="9">' .. esc(inst.ClassName) .. "</font>"
+nm.Text = esc(inst.Name) .. (cfg.showClass and ('  <font color="#8b8ba8" size="9">' .. esc(inst.ClassName) .. "</font>") or "")
 row.MouseButton1Click:Connect(function()
 selected = inst
 say(inst.Name .. "  [" .. inst.ClassName .. "]")
@@ -3645,7 +3651,7 @@ if found == 0 then msg("Tidak ditemukan.") end
 return
 end
 local function addNode(inst, depth)
-if n >= MAXROWS then return end
+if n >= cfg.maxRows then return end
 n = n + 1
 local kids = kidsOf(inst)
 treeRow(n, inst, depth, #kids > 0)
@@ -3663,11 +3669,18 @@ end
 local ch = player.Character
 if ch then
 n = n + 1
-local sc = make("TextButton", {Text = "", Size = UDim2.new(1, -4, 0, 26), BackgroundColor3 = C.blue, BackgroundTransparency = 0.5, LayoutOrder = n}, list)
-corner(sc, 6)
+local sc = make("TextButton", {Text = "", Size = UDim2.new(1, -4, 0, 28), BackgroundColor3 = C.blue, BackgroundTransparency = 0.5, LayoutOrder = n}, list)
+corner(sc, 8)
+stroke(sc, C.blue, 1, 0.4)
 label("* Karakterku", 11, C.text, sc, {Position = UDim2.new(0, 10, 0, 0), TextXAlignment = Enum.TextXAlignment.Left})
 sc.MouseButton1Click:Connect(function() jumpTo(ch) renderTree() end)
 end
+n = n + 1
+local sa = make("TextButton", {Text = "", Size = UDim2.new(1, -4, 0, 28), BackgroundColor3 = C.blue, BackgroundTransparency = 0.5, LayoutOrder = n}, list)
+corner(sa, 8)
+stroke(sa, C.blue, 1, 0.4)
+label("* Akunku (Player)", 11, C.text, sa, {Position = UDim2.new(0, 10, 0, 0), TextXAlignment = Enum.TextXAlignment.Left})
+sa.MouseButton1Click:Connect(function() jumpTo(player) renderTree() end)
 local roots = game:GetChildren()
 table.sort(roots, function(a, b)
 if a == workspace then return true elseif b == workspace then return false end
@@ -3676,14 +3689,60 @@ end)
 for _, r in ipairs(roots) do addNode(r, 0) end
 task.defer(function() list.CanvasPosition = keep end)
 end
+local function setBox(order, title, desc)
+local row = make("Frame", {Size = UDim2.new(1, -4, 0, 46), BackgroundColor3 = C.panel, BackgroundTransparency = 0.35, LayoutOrder = order}, list)
+corner(row, 8)
+stroke(row, C.purple, 1, 0.5)
+label(title, 12, C.text, row, {Size = UDim2.new(1, -90, 0, 18), Position = UDim2.new(0, 10, 0, 6), TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd})
+label(desc, 9, C.muted, row, {Font = Enum.Font.Gotham, Size = UDim2.new(1, -90, 0, 14), Position = UDim2.new(0, 10, 0, 25), TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd})
+return row
+end
+local function toggleSet(order, title, desc, key)
+local row = setBox(order, title, desc)
+local b = button("", 11, row, {Size = UDim2.new(0, 60, 0, 28), Position = UDim2.new(1, -70, 0.5, -14), BackgroundColor3 = C.panel2})
+corner(b, 14)
+local function paint()
+b.Text = cfg[key] and "ON" or "OFF"
+b.BackgroundColor3 = cfg[key] and Color3.fromRGB(34, 170, 90) or C.panel2
+end
+paint()
+b.MouseButton1Click:Connect(function() cfg[key] = not cfg[key] paint() end)
+end
+local function numSet(order, title, desc, key, lo, hi)
+local row = setBox(order, title, desc)
+local box = inputBox(tostring(cfg[key]), row, {Size = UDim2.new(0, 60, 0, 28), Position = UDim2.new(1, -70, 0.5, -14), TextSize = 12, TextXAlignment = Enum.TextXAlignment.Center})
+box.FocusLost:Connect(function()
+local v = tonumber(box.Text)
+if v then cfg[key] = math.clamp(v, lo, hi) end
+box.Text = tostring(cfg[key])
+end)
+end
+local function renderSettings()
+clearList()
+toggleSet(1, "Perbarui Otomatis", "Nilai di tab DETAIL ikut berubah langsung", "auto")
+numSet(2, "Interval Perbarui (detik)", "0.2 sampai 5", "interval", 0.2, 5)
+toggleSet(3, "Tampilkan Atribut", "Bagian ATTRIBUTES di tab DETAIL", "attrs")
+toggleSet(4, "Tampilkan Tag", "Bagian TAGS di tab DETAIL", "tags")
+toggleSet(5, "Tampilkan Nama Kelas", "Teks kelas di samping nama (tab PROPERTI)", "showClass")
+toggleSet(6, "Konfirmasi Hapus", "Ketuk HAPUS dua kali sebelum menghapus", "confirmDel")
+numSet(7, "Maks Baris Pohon", "50 sampai 800", "maxRows", 50, 800)
+end
+Settings.extra.infoakun = {
+get = function() return {auto = cfg.auto, interval = cfg.interval, attrs = cfg.attrs, tags = cfg.tags, confirmDel = cfg.confirmDel, showClass = cfg.showClass, maxRows = cfg.maxRows} end,
+set = function(t) for k, v in pairs(t or {}) do if cfg[k] ~= nil then cfg[k] = v end end end,
+def = {auto = true, interval = 0.8, attrs = true, tags = true, confirmDel = true, showClass = true, maxRows = 300},
+}
 function sw.refresh()
 tabE.BackgroundColor3 = (mode == "E") and C.purple or C.panel2
 tabP.BackgroundColor3 = (mode == "P") and C.purple or C.panel2
+tabS.BackgroundColor3 = (mode == "S") and C.purple or C.panel2
+search.Visible = (mode ~= "S")
 search.PlaceholderText = (mode == "E") and "Cari instance..." or "Cari properti..."
-if mode == "E" then renderTree() else renderProps() end
+if mode == "E" then renderTree() elseif mode == "P" then renderProps() else renderSettings() end
 end
 tabE.MouseButton1Click:Connect(function() mode = "E" search.Text = "" sw.refresh() end)
 tabP.MouseButton1Click:Connect(function() mode = "P" search.Text = "" sw.refresh() end)
+tabS.MouseButton1Click:Connect(function() mode = "S" search.Text = "" sw.refresh() end)
 local token = 0
 search:GetPropertyChangedSignal("Text"):Connect(function()
 token = token + 1
@@ -3713,7 +3772,7 @@ end)
 local delArmed = false
 bDel.MouseButton1Click:Connect(function()
 if not selected or not selected.Parent then say("Pilih instance dulu") return end
-if not delArmed then
+if cfg.confirmDel and not delArmed then
 delArmed = true
 bDel.Text = "YAKIN?"
 task.delay(2.5, function() delArmed = false bDel.Text = "HAPUS" end)
@@ -3740,15 +3799,15 @@ if v then
 sw.refresh()
 task.spawn(function()
 while sw.open and gui.Parent do
-if mode == "P" then
+if mode == "P" and cfg.auto then
 for _, u in ipairs(pRows) do pcall(u) end
 end
-task.wait(0.8)
+task.wait(cfg.interval)
 end
 end)
 end
 end
-makeOpenCard(pages["FITUR"], "Dex Explorer", "Explorer & Properties seperti Dex", 37, sw)
+makeOpenCard(pages["FITUR"], "Nimeroahub", "Properti, detail & pengaturan (gaya Dex)", 37, sw)
 end)
 secure("PROFILE", function()
 local page = pages["FITUR"]
