@@ -4116,6 +4116,157 @@ end)
 return false -- switch kembali mati, siap dipakai lagi
 end)
 end)
+secure("WHITEMODE", function()
+local page = pages["MISC"]
+local on = false
+local cfg = {onlyGuard = false, protect = true, radius = 40}
+local saved = setmetatable({}, {__mode = "k"})
+local hasPrompt = setmetatable({}, {__mode = "k"})
+local isNpc = setmetatable({}, {__mode = "k"})
+local WHITE = Color3.fromRGB(245, 245, 248)
+local itemWords = {"egg", "telur", "seed", "benih", "biji", "fruit", "buah", "brainrot", "block", "blok", "crop", "plant", "tanaman"}
+local guardWords = {"guard", "penjaga", "npc", "enemy", "musuh", "boss", "mob", "monster", "sentry", "warden"}
+local function has(str, list)
+str = str:lower()
+for _, w in ipairs(list) do if str:find(w, 1, true) then return true end end
+return false
+end
+local grid, cell = {}, 40
+local function gkey(x, z) return math.floor(x / cell) .. ":" .. math.floor(z / cell) end
+local function addItem(pos)
+local k = gkey(pos.X, pos.Z)
+local t = grid[k]
+if not t then t = {} grid[k] = t end
+table.insert(t, pos)
+end
+local function nearItem(pos)
+local r2 = cfg.radius * cfg.radius
+local cx, cz = math.floor(pos.X / cell), math.floor(pos.Z / cell)
+local span = math.ceil(cfg.radius / cell)
+for dx = -span, span do
+for dz = -span, span do
+local t = grid[(cx + dx) .. ":" .. (cz + dz)]
+if t then
+for _, ip in ipairs(t) do
+local d = ip - pos
+if d.X * d.X + d.Z * d.Z <= r2 then return true end
+end
+end
+end
+end
+return false
+end
+local function buildGrid()
+grid = {}
+local n = 0
+for _, d in ipairs(workspace:GetDescendants()) do
+n = n + 1
+if n % 500 == 0 then task.wait() end
+if d:IsA("ProximityPrompt") then
+local par = d.Parent
+if par and par:IsA("Attachment") then par = par.Parent end
+if par and par:IsA("BasePart") then addItem(par.Position) end
+elseif (d:IsA("Model") or d:IsA("BasePart")) and has(d.Name, itemWords) then
+local ok, pos = pcall(function() return d:IsA("Model") and d:GetPivot().Position or d.Position end)
+if ok and pos then addItem(pos) end
+end
+end
+end
+local function eligible(p)
+if p:IsA("Terrain") or not p:IsA("BasePart") then return false end
+local npc, guard, itemHit = false, false, false
+local a = p
+for _ = 1, 8 do
+if not a or a == workspace then break end
+if a:IsA("Model") then
+if Players:GetPlayerFromCharacter(a) then return false end
+local v = isNpc[a]
+if v == nil then v = a:FindFirstChildOfClass("Humanoid") ~= nil isNpc[a] = v end
+if v then npc = true end
+if cfg.protect then
+local hp = hasPrompt[a]
+if hp == nil then hp = a:FindFirstChildWhichIsA("ProximityPrompt", true) ~= nil hasPrompt[a] = hp end
+if hp and not v then itemHit = true end
+end
+end
+if has(a.Name, guardWords) then guard = true end
+if cfg.protect and has(a.Name, itemWords) then itemHit = true end
+a = a.Parent
+end
+if itemHit then return false end
+if cfg.onlyGuard and not (npc or guard) then return false end
+if cfg.protect and not (npc or guard) and nearItem(p.Position) then return false end
+return true
+end
+local function whiten(p)
+if saved[p] then return end
+if not eligible(p) then return end
+saved[p] = {p.Color, p.Material, p.Reflectance, p.CastShadow}
+pcall(function()
+p.Color = WHITE
+p.Material = Enum.Material.SmoothPlastic
+p.Reflectance = 0
+p.CastShadow = false
+end)
+end
+local function restoreAll()
+local list = {}
+for p, s in pairs(saved) do list[p] = s end
+for p, s in pairs(list) do
+pcall(function()
+p.Color, p.Material, p.Reflectance, p.CastShadow = s[1], s[2], s[3], s[4]
+end)
+saved[p] = nil
+end
+end
+local job = 0
+local function apply()
+job = job + 1
+local my = job
+task.spawn(function()
+if cfg.protect then buildGrid() end
+local n = 0
+for _, d in ipairs(workspace:GetDescendants()) do
+if not on or job ~= my then return end
+if d:IsA("BasePart") then pcall(whiten, d) end
+n = n + 1
+if n % 300 == 0 then task.wait() end
+end
+end)
+end
+local function reapply()
+restoreAll()
+if on then apply() end
+end
+makeToggle(page, "Mode Putih (Potato)", "Bangunan & penjaga jadi putih polos, item aman", 44, false, function(v)
+on = v
+if v then apply() else job = job + 1 restoreAll() end
+end)
+makeToggle(page, "Hanya Penjaga / NPC", "Putihkan penjaga & NPC saja, area lain tetap", 45, false, function(v)
+cfg.onlyGuard = v
+reapply()
+end)
+makeToggle(page, "Lindungi Area Telur / Item", "Telur, item & sekitarnya tidak diputihkan", 46, true, function(v)
+cfg.protect = v
+reapply()
+end)
+makeNumberRow(page, "RADIUS AMAN (stud)", cfg.radius, 47, function(n)
+cfg.radius = math.clamp(n, 5, 300)
+if on then reapply() end
+end)
+track(workspace.DescendantAdded:Connect(function(d)
+if on and d:IsA("BasePart") then
+task.defer(function() pcall(whiten, d) end)
+end
+end))
+local prevClean = miscCleanup
+miscCleanup = function()
+on = false
+job = job + 1
+if prevClean then pcall(prevClean) end
+restoreAll()
+end
+end)
 secure("THEME", function()
 local page = pages["FITUR"]
 local presets = {
