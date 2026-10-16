@@ -4450,6 +4450,9 @@ pcall(function() acc:Destroy() end)
 return false, "titik tempel tidak ditemukan"
 end
 -- Bangun HumanoidDescription lengkap: tampilan asli + slot + semua aksesori (termasuk layered)
+local applyNote
+-- item sejenis menggantikan yang lama (rambut ganti rambut, jaket ganti jaket, dst)
+-- dan baju/celana klasik menyingkirkan pakaian berlapis asli yang menutupinya
 local function buildDesc()
 local desc = original:Clone()
 for _, w in ipairs(worn) do
@@ -4457,30 +4460,57 @@ if w.slot then desc[w.slot] = w.id end
 end
 local list = {}
 pcall(function() list = original:GetAccessories(true) end)
-local have, maxOrder = {}, 0
+local drop = {}
+local function dropTypes(names) for _, n in ipairs(names) do drop[n] = true end end
+for _, w in ipairs(worn) do
+if w.acc and w.acc ~= "Hat" then drop[w.acc] = true end
+if w.slot == "Shirt" then dropTypes({"TShirt", "Shirt", "Jacket", "Sweater"}) end
+if w.slot == "GraphicTShirt" then dropTypes({"TShirt"}) end
+if w.slot == "Pants" then dropTypes({"Pants", "Shorts", "DressSkirt"}) end
+end
+local kept, have = {}, {}
 for _, a in ipairs(list) do
+local tn
+pcall(function() tn = a.AccessoryType.Name end)
+if tn and drop[tn] then
+-- diganti item baru
+else
+table.insert(kept, a)
 have[a.AssetId] = true
-if type(a.Order) == "number" and a.Order > maxOrder then maxOrder = a.Order end
+end
 end
 for _, w in ipairs(worn) do
 if w.acc and not have[w.id] then
 local okT, at = pcall(function() return Enum.AccessoryType[w.acc] end)
 if okT and at then
-local e = {AssetId = w.id, AccessoryType = at, IsLayered = w.layered and true or false}
-if w.layered then
-e.Order = maxOrder + (layeredOrder[w.acc] or 1)
-e.Puffiness = 1
-end
-table.insert(list, e)
+table.insert(kept, {AssetId = w.id, AccessoryType = at, IsLayered = w.layered and true or false, Order = 1, Puffiness = 1})
 have[w.id] = true
 end
 end
 end
-desc:SetAccessories(list, true)
+-- susun ulang urutan lapisan: kaus -> baju -> celana -> rok -> sweater -> jaket -> sepatu
+local lay = {}
+for i, a in ipairs(kept) do
+if a.IsLayered then
+local tn = "?"
+pcall(function() tn = a.AccessoryType.Name end)
+table.insert(lay, {rank = layeredOrder[tn] or 1, idx = i, e = a})
+end
+end
+table.sort(lay, function(x, y)
+if x.rank ~= y.rank then return x.rank < y.rank end
+return x.idx < y.idx
+end)
+for i, r in ipairs(lay) do
+r.e.Order = i
+if not r.e.Puffiness then r.e.Puffiness = 1 end
+end
+desc:SetAccessories(kept, true)
 return desc
 end
 local classicSlots = {Shirt = true, Pants = true, GraphicTShirt = true}
 local function applyAll()
+applyNote = nil
 local hum, ch = getHum()
 if not hum then return false, "karakter belum siap" end
 if not original then
@@ -4523,7 +4553,7 @@ if w.acc and okV and not appliedAcc[w.id] and not findTagged(ch, w.id) then
 missing = w
 elseif w.slot and classicSlots[w.slot] and okV and applied then
 local okS, cur = pcall(function() return applied[w.slot] end)
-if okS and cur ~= w.id then missing = w end
+if okS and cur ~= w.id then applyNote = "baju/celana klasik mungkin ditolak game" end
 end
 end
 if not missing then return true end
@@ -4585,6 +4615,16 @@ end
 local function removeId(id)
 for i = #worn, 1, -1 do if worn[i].id == id then table.remove(worn, i) end end
 end
+local function evictConflicts(e)
+for i = #worn, 1, -1 do
+local w = worn[i]
+if w.id ~= e.id then
+if (e.slot and w.slot == e.slot) or (e.acc and e.acc ~= "Hat" and w.acc == e.acc) then
+table.remove(worn, i)
+end
+end
+end
+end
 local function setWorn(id, bundle, want)
 if busy then say("Tunggu sebentar...") return end
 busy = true
@@ -4600,7 +4640,7 @@ if not ids or #ids == 0 then say("Isi bundle tidak terbaca") return end
 local n = 0
 for _, aid in ipairs(ids) do
 local e = makeEntry(aid)
-if e then e.bundle = id removeId(aid) table.insert(worn, e) n = n + 1 end
+if e then e.bundle = id removeId(aid) evictConflicts(e) table.insert(worn, e) n = n + 1 end
 end
 if n == 0 then say("Bundle tidak didukung") return end
 bundleWorn[id] = true
@@ -4613,6 +4653,7 @@ if want then
 local e, why = makeEntry(id)
 if not e then say("Gagal: " .. tostring(why)) return end
 removeId(id)
+evictConflicts(e)
 table.insert(worn, e)
 else
 removeId(id)
@@ -4628,7 +4669,7 @@ removeId(id)
 end
 pcall(applyAll)
 end
-say(ok and (want and "Terpasang" or "Dilepas") or ("Gagal: " .. tostring(err)))
+say(ok and ((want and "Terpasang" or "Dilepas") .. (applyNote and (" - " .. applyNote) or "")) or ("Gagal: " .. tostring(err)))
 end)
 if not okRun then say("Error: " .. tostring(errRun)) end
 busy = false
