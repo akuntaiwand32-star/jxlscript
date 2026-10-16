@@ -765,6 +765,7 @@ secure("TP/SP", function()
 local page = pages["TPSP"]
 local mode = "TPSP" -- TP | SP | TPSP
 local spd = 10
+local SP_SCALE = 5 -- angka 10 = 50 stud/detik (lumayan cepat)
 local saved = {}
 local rows = {}
 local slotRows = {}
@@ -785,7 +786,7 @@ make("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, SortOrder =
 local subBtns = {}
 local function relayout()
 local cols = {"SET"}
-if mode ~= "TP" then table.insert(cols, "SP") table.insert(cols, "STOP") end
+if mode ~= "TP" then table.insert(cols, "SP") end
 if mode ~= "SP" then table.insert(cols, "TP") end
 local w = 0.85 / #cols
 for _, r in ipairs(rows) do
@@ -830,7 +831,7 @@ def = 10,
 }
 local head = make("Frame", {Size = UDim2.new(1, -6, 0, 16), BackgroundTransparency = 1, LayoutOrder = 3}, page)
 local hr = {}
-for name, txt in pairs({SET = "SIMPAN", TP = "TELEPORT", SP = "SPEED", STOP = "STOP"}) do
+for name, txt in pairs({SET = "SIMPAN", TP = "TELEPORT", SP = "SPEED"}) do
 hr[name] = label(txt, 12, C.muted, head, {TextXAlignment = Enum.TextXAlignment.Center})
 end
 table.insert(rows, hr)
@@ -842,10 +843,14 @@ BackgroundColor3 = C.panel2, BackgroundTransparency = 0.4,
 })
 corner(numLbl, 8)
 local r = {}
+local baseColor, curTween
+local function setSPLabel(on)
+r.SP.Text = on and "STOP" or "SP"
+r.SP.BackgroundColor3 = on and Color3.fromRGB(190, 50, 60) or (baseColor or C.panel2)
+end
 r.SET = button("SET", 13, row, {BackgroundColor3 = C.panel2})
 r.TP = button("TP", 13, row, {BackgroundColor3 = C.panel2})
 r.SP = button("SP", 13, row, {BackgroundColor3 = C.panel2})
-r.STOP = button("STOP", 12, row, {BackgroundColor3 = Color3.fromRGB(190, 50, 60)})
 for _, b in pairs(r) do corner(b, 8) end
 r.SET.MouseButton1Click:Connect(function()
 local hrp = getHRP()
@@ -855,9 +860,10 @@ local col = slotColors[(i - 1) % #slotColors + 1]
 numLbl.BackgroundColor3 = col
 numLbl.BackgroundTransparency = 0
 numLbl.TextColor3 = Color3.new(1, 1, 1)
+baseColor = col
 r.SET.BackgroundColor3 = col
 r.TP.BackgroundColor3 = col
-r.SP.BackgroundColor3 = col
+if not curTween then r.SP.BackgroundColor3 = col end
 flash(r.SET, "OK", "SET")
 end)
 r.TP.MouseButton1Click:Connect(function()
@@ -868,27 +874,37 @@ hrp.CFrame = saved[i]
 end)
 r.SP.MouseButton1Click:Connect(function()
 local hrp = getHRP()
-local target = saved[i]
-if not hrp or not target then flash(r.SP, "X", "SP") return end
-if activeTween then activeTween:Cancel() end
-local dist = (hrp.Position - target.Position).Magnitude
-local dur = math.max(dist / spd, 0.05)
-activeTween = TweenService:Create(hrp, TweenInfo.new(dur, Enum.EasingStyle.Linear), {CFrame = target})
-activeTween:Play()
-end)
-r.STOP.MouseButton1Click:Connect(function()
+if curTween then
+-- sedang bergerak dari slot ini: tombol SP berubah jadi STOP
 if activeTween then activeTween:Cancel() activeTween = nil end
-local hrp = getHRP()
 if hrp then
 pcall(function()
 hrp.AssemblyLinearVelocity = Vector3.zero
 hrp.AssemblyAngularVelocity = Vector3.zero
 end)
 end
-flash(r.STOP, "OK", "STOP")
+return
+end
+local target = saved[i]
+if not hrp or not target then flash(r.SP, "X", "SP") return end
+if activeTween then activeTween:Cancel() end
+local dist = (hrp.Position - target.Position).Magnitude
+local dur = math.max(dist / (spd * SP_SCALE), 0.05)
+local tw = TweenService:Create(hrp, TweenInfo.new(dur, Enum.EasingStyle.Linear), {CFrame = target})
+activeTween = tw
+curTween = tw
+setSPLabel(true)
+tw.Completed:Connect(function()
+if curTween == tw then
+curTween = nil
+setSPLabel(false)
+end
+if activeTween == tw then activeTween = nil end
+end)
+tw:Play()
 end)
 table.insert(rows, r)
-table.insert(slotRows, {r = r, num = numLbl})
+table.insert(slotRows, {r = r, num = numLbl, clear = function() baseColor = nil end})
 end
 local resetAll = button("RESET SEMUA POS", 13, page, {
 Size = UDim2.new(1, -6, 0, 34), BackgroundColor3 = Color3.fromRGB(190, 50, 60), LayoutOrder = 20,
@@ -898,6 +914,7 @@ resetAll.MouseButton1Click:Connect(function()
 saved = {}
 if activeTween then activeTween:Cancel() activeTween = nil end
 for _, e in ipairs(slotRows) do
+e.clear()
 for _, n in ipairs({"SET", "TP", "SP"}) do e.r[n].BackgroundColor3 = C.panel2 end
 e.num.BackgroundColor3 = C.panel2
 e.num.BackgroundTransparency = 0.4
