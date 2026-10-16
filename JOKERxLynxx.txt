@@ -4399,7 +4399,10 @@ for _, c in ipairs(ch:GetChildren()) do
 if c:IsA("Accessory") and c:GetAttribute("JxLCat") == id then return c end
 end
 end
-local function attachAcc(hum, ch, id)
+local layeredOrder = {TShirt = 1, Shirt = 2, Pants = 3, Shorts = 3, DressSkirt = 4, Sweater = 5, Jacket = 6, LeftShoe = 7, RightShoe = 7}
+-- CADANGAN: dipakai hanya kalau ApplyDescription gagal. Item berlapis (layered) TIDAK boleh
+-- ditempel kaku, jadi untuk item berlapis fungsi ini menolak dan tidak meninggalkan sisa.
+local function attachAcc(hum, ch, id, layered)
 local ok, objs = pcall(function() return game:GetObjects("rbxassetid://" .. id) end)
 if not ok or type(objs) ~= "table" then return false, "GetObjects diblokir" end
 local acc
@@ -4409,6 +4412,10 @@ local d = o:FindFirstChildWhichIsA("Accessory", true)
 if d then acc = d break end
 end
 if not acc then return false, "item bukan aksesori" end
+if layered then
+pcall(function() acc:Destroy() end)
+return false, "item berlapis hanya bisa dipasang lewat avatar R15"
+end
 acc:SetAttribute("JxLCat", id)
 local h = acc:FindFirstChild("Handle")
 if h then
@@ -4428,7 +4435,7 @@ return false
 end
 if welded() then return true end
 local att = h and h:FindFirstChildOfClass("Attachment")
-if not att then return false, "aksesori tanpa attachment" end
+if not att then pcall(function() acc:Destroy() end) return false, "aksesori tanpa attachment" end
 for _, d in ipairs(ch:GetDescendants()) do
 if d:IsA("Attachment") and d.Name == att.Name and d.Parent ~= h and not d:IsDescendantOf(acc) then
 local weld = Instance.new("Weld")
@@ -4439,8 +4446,40 @@ weld.Parent = h
 return true
 end
 end
+pcall(function() acc:Destroy() end)
 return false, "titik tempel tidak ditemukan"
 end
+-- Bangun HumanoidDescription lengkap: tampilan asli + slot + semua aksesori (termasuk layered)
+local function buildDesc()
+local desc = original:Clone()
+for _, w in ipairs(worn) do
+if w.slot then desc[w.slot] = w.id end
+end
+local list = {}
+pcall(function() list = original:GetAccessories(true) end)
+local have, maxOrder = {}, 0
+for _, a in ipairs(list) do
+have[a.AssetId] = true
+if type(a.Order) == "number" and a.Order > maxOrder then maxOrder = a.Order end
+end
+for _, w in ipairs(worn) do
+if w.acc and not have[w.id] then
+local okT, at = pcall(function() return Enum.AccessoryType[w.acc] end)
+if okT and at then
+local e = {AssetId = w.id, AccessoryType = at, IsLayered = w.layered and true or false}
+if w.layered then
+e.Order = maxOrder + (layeredOrder[w.acc] or 1)
+e.Puffiness = 1
+end
+table.insert(list, e)
+have[w.id] = true
+end
+end
+end
+desc:SetAccessories(list, true)
+return desc
+end
+local classicSlots = {Shirt = true, Pants = true, GraphicTShirt = true}
 local function applyAll()
 local hum, ch = getHum()
 if not hum then return false, "karakter belum siap" end
@@ -4449,28 +4488,69 @@ local ok, d = pcall(function() return hum:GetAppliedDescription() end)
 if not ok or not d then return false, "tampilan awal tidak terbaca" end
 original = d
 end
+local isR6 = hum.RigType == Enum.HumanoidRigType.R6
+for _, w in ipairs(worn) do
+if w.layered and isR6 then return false, "item berlapis butuh avatar R15 (avatarmu R6)" end
+end
 local anySlot = false
 for _, w in ipairs(worn) do if w.slot then anySlot = true end end
-if anySlot or hadSlots then
-pcall(function()
-local desc = original:Clone()
-for _, w in ipairs(worn) do
-if w.slot then desc[w.slot] = w.id end
+local okD, desc = pcall(buildDesc)
+local viaDesc = false
+if okD and desc then
+viaDesc = pcall(function() hum:ApplyDescription(desc) end)
 end
-hum:ApplyDescription(desc)
-end)
-hadSlots = anySlot
-end
+if viaDesc then
+hadSlots = true
+-- aksesori hasil fallback lama yang tidak dipakai lagi dibersihkan
 local keep = {}
 for _, w in ipairs(worn) do if w.acc then keep[w.id] = true end end
 for _, c in ipairs(ch:GetChildren()) do
 local tag = c:IsA("Accessory") and c:GetAttribute("JxLCat")
 if tag and not keep[tag] then c:Destroy() end
 end
+task.wait(0.35)
+-- verifikasi: item benar-benar terpasang di avatar, bukan cuma ditandai "dipakai"
+local okV, applied = pcall(function() return hum:GetAppliedDescription() end)
+local appliedAcc = {}
+if okV and applied then
+pcall(function()
+for _, a in ipairs(applied:GetAccessories(true)) do appliedAcc[a.AssetId] = true end
+end)
+end
+local missing
+for _, w in ipairs(worn) do
+if w.acc and okV and not appliedAcc[w.id] and not findTagged(ch, w.id) then
+missing = w
+elseif w.slot and classicSlots[w.slot] and okV and applied then
+local okS, cur = pcall(function() return applied[w.slot] end)
+if okS and cur ~= w.id then missing = w end
+end
+end
+if not missing then return true end
+if missing.layered or missing.slot then
+return false, "item ditolak game (tidak muncul di avatar)"
+end
+-- aksesori biasa yang tidak muncul: coba cadangan manual
+for _, w in ipairs(worn) do
+if w.acc and not appliedAcc[w.id] and not findTagged(ch, w.id) then
+local ok, why = attachAcc(hum, ch, w.id, w.layered)
+if not ok then return false, why end
+end
+end
+return true
+end
+-- ApplyDescription gagal total: cadangan manual (hanya aksesori biasa)
 local failWhy
+local keep = {}
+for _, w in ipairs(worn) do if w.acc then keep[w.id] = true end end
+for _, c in ipairs(ch:GetChildren()) do
+local tag = c:IsA("Accessory") and c:GetAttribute("JxLCat")
+if tag and not keep[tag] then c:Destroy() end
+end
+if anySlot then failWhy = "game memblokir ApplyDescription (baju/badan tidak bisa diganti)" end
 for _, w in ipairs(worn) do
 if w.acc and not findTagged(ch, w.id) then
-local ok, why = attachAcc(hum, ch, w.id)
+local ok, why = attachAcc(hum, ch, w.id, w.layered)
 if not ok then failWhy = why end
 end
 end
@@ -4486,7 +4566,7 @@ local info = infoOf(id)
 if not info then return nil, "ID tidak ditemukan" end
 local t = info.AssetTypeId
 if slotMap[t] then return {id = id, slot = slotMap[t]} end
-if accMap[t] then return {id = id, acc = accMap[t], layered = (t >= 64 and t <= 72) or t == 76 or t == 77} end
+if accMap[t] then return {id = id, acc = accMap[t], layered = (t >= 64 and t <= 72)} end
 return nil, "jenis item tidak didukung"
 end
 local httpReq = (syn and syn.request) or http_request or request or (http and http.request)
@@ -4546,6 +4626,7 @@ bundleWorn[id] = nil
 else
 removeId(id)
 end
+pcall(applyAll)
 end
 say(ok and (want and "Terpasang" or "Dilepas") or ("Gagal: " .. tostring(err)))
 end)
@@ -4711,7 +4792,7 @@ worn, bundleWorn = {}, {}
 local hum = getHum()
 clearTagged()
 local ok = true
-if hum and original and hadSlots then
+if hum and original then
 ok = pcall(function() hum:ApplyDescription(original) end)
 end
 hadSlots = false
