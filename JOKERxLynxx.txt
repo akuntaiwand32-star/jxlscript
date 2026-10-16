@@ -2216,6 +2216,11 @@ if Settings.espRefresh then Settings.espRefresh() end
 if on then task.spawn(scan) end
 end)
 end)
+secure("EGGPANEL", function()
+local sw = makeSubWindow("BANTU & TANDA TELUR", "Auto bantu, zona aman & penanda", 300, 340, 0)
+Settings.eggWin = sw
+makeOpenCard(pages["EGG"], "Bantu & Tanda Telur", "Auto bantu teman, zona aman, penanda telur", 2, sw)
+end)
 secure("AREALIST", function()
 local sw = makeSubWindow("TELEPORT AREA", "", 240, 340, 36)
 local list = sw.content
@@ -2539,13 +2544,13 @@ local n = tonumber(player:GetAttribute("CarriedEggCount")) or 0
 if n > lastCarried then toSafe("jumlah telur naik") end
 lastCarried = n
 end))
-makeToggle(pages["EGG"], "Auto Bantu Teman", "Ambil telur -> ke teman -> drop telur", 2, false, function(v) friendOn = v end)
-makeToggle(pages["EGG"], "Ke Zona Aman saat ambil telur", "Otomatis teleport begitu telur diambil", 3, false, function(v) eggSafe = v end)
-makeToggle(pages["EGG"], "Balik ke tempat ambil telur", "Kembali otomatis setelah dari Zona Aman / teman", 4, false, function(v)
+makeToggle(Settings.eggWin.content, "Auto Bantu Teman", "Ambil telur -> ke teman -> drop telur", 2, false, function(v) friendOn = v end)
+makeToggle(Settings.eggWin.content, "Ke Zona Aman saat ambil telur", "Otomatis teleport begitu telur diambil", 3, false, function(v) eggSafe = v end)
+makeToggle(Settings.eggWin.content, "Balik ke tempat ambil telur", "Kembali otomatis setelah dari Zona Aman / teman", 4, false, function(v)
 backOn = v
 backJob = backJob + 1
 end)
-local setSafe = button("SET ZONA AMAN = POSISI SAAT INI", 11, pages["EGG"], {
+local setSafe = button("SET ZONA AMAN = POSISI SAAT INI", 11, Settings.eggWin.content, {
 Size = UDim2.new(1, -2, 0, 30), BackgroundColor3 = C.panel2, LayoutOrder = 7,
 })
 corner(setSafe, 8)
@@ -2556,7 +2561,7 @@ safePos = h.Position + Vector3.new(0, 3, 0)
 sw.sub.Text = "Zona Aman tersimpan"
 pcall(function() Settings.toast("Zona Aman tersimpan", true) end)
 end)
-local setFriend = button("SET POSISI TEMAN = POSISI SAAT INI", 11, pages["EGG"], {
+local setFriend = button("SET POSISI TEMAN = POSISI SAAT INI", 11, Settings.eggWin.content, {
 Size = UDim2.new(1, -2, 0, 30), BackgroundColor3 = C.panel2, LayoutOrder = 8,
 })
 corner(setFriend, 8)
@@ -2581,7 +2586,7 @@ friendPos = t.friend and Vector3.new(t.friend[1], t.friend[2], t.friend[3]) or n
 end,
 def = {},
 }
-makeNumberRow(pages["EGG"], "JEDA BALIK (detik)", backDelay, 5, function(n) backDelay = math.clamp(n, 0.5, 60) end)
+makeNumberRow(Settings.eggWin.content, "JEDA BALIK (detik)", backDelay, 5, function(n) backDelay = math.clamp(n, 0.5, 60) end)
 makeOpenCard(pages["EGG"], "Teleport Area", "Savana, Zona Aman & posisi simpanan", 1, sw)
 local prev = sw.onChange
 sw.onChange = function(v)
@@ -2676,7 +2681,7 @@ end
 end)
 track(Players.PlayerRemoving:Connect(function(p) dropMark(p) end))
 track({Disconnect = function() for p in pairs(marks) do dropMark(p) end end})
-makeToggle(pages["EGG"], "Tanda Pembawa Telur", "Tulisan TELUR! di atas kepala pemain yang membawa telur", 10, false, function(v)
+makeToggle(Settings.eggWin.content, "Tanda Pembawa Telur", "Tulisan TELUR! di atas kepala pemain yang membawa telur", 10, false, function(v)
 eggMark = v
 end)
 local sw = makeSubWindow("TEMAN / MUSUH", "Ketuk nama untuk ganti status", 230, 310, 36)
@@ -3004,7 +3009,7 @@ track({Disconnect = function() clearTags() end})
 Settings.espRefresh = function()
 if espOn then clearTags() task.spawn(scanTags) end
 end
-makeToggle(pages["EGG"], "Penanda Telur di Layar", "Nama, kelangkaan & jarak telur (tembus dinding)", 11, false, function(v)
+makeToggle(Settings.eggWin.content, "Penanda Telur di Layar", "Nama, kelangkaan & jarak telur (tembus dinding)", 11, false, function(v)
 espOn = v
 if v then task.spawn(scanTags) else clearTags() end
 end)
