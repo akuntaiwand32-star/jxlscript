@@ -638,7 +638,10 @@ qualOrig = nil
 end
 end
 end
-makeToggle(page, "Anti Lag", "Kentang, tanpa efek & cuaca", 2, false, setLag)
+local alWin = makeSubWindow("ANTI LAG", "Kentang, mode putih & efek", 290, 330, 0)
+Settings.antiLagWin = alWin
+makeToggle(alWin.content, "Anti Lag", "Kentang, tanpa efek & cuaca", 1, false, setLag)
+makeOpenCard(page, "Anti Lag", "Kentang, mode putih & pengaturan lainnya", 2, alWin)
 track(game.DescendantAdded:Connect(function(o)
 if lagOn then pcall(boost, o) end
 end))
@@ -4117,7 +4120,7 @@ return false -- switch kembali mati, siap dipakai lagi
 end)
 end)
 secure("WHITEMODE", function()
-local page = pages["MISC"]
+local page = Settings.antiLagWin.content
 local on = false
 local cfg = {onlyGuard = false, protect = true, radius = 12, terrain = true}
 local saved = setmetatable({}, {__mode = "k"})
@@ -4294,23 +4297,23 @@ local function reapply()
 restoreAll()
 if on then apply() end
 end
-makeToggle(page, "Mode Putih (Potato)", "Bangunan & penjaga jadi putih polos, item aman", 44, false, function(v)
+makeToggle(page, "Mode Putih (Potato)", "Bangunan & penjaga jadi putih polos, item aman", 2, false, function(v)
 on = v
 if v then apply() else job = job + 1 restoreAll() end
 end)
-makeToggle(page, "Hanya Penjaga / NPC", "Putihkan penjaga & NPC saja, area lain tetap", 45, false, function(v)
+makeToggle(page, "Hanya Penjaga / NPC", "Putihkan penjaga & NPC saja, area lain tetap", 3, false, function(v)
 cfg.onlyGuard = v
 reapply()
 end)
-makeToggle(page, "Lindungi Area Telur / Item", "Telur, item & sekitarnya tidak diputihkan", 46, true, function(v)
+makeToggle(page, "Lindungi Area Telur / Item", "Telur, item & sekitarnya tidak diputihkan", 4, true, function(v)
 cfg.protect = v
 reapply()
 end)
-makeToggle(page, "Putihkan Terrain", "Pasir / rumput / tanah bawaan map ikut putih", 48, true, function(v)
+makeToggle(page, "Putihkan Terrain", "Pasir / rumput / tanah bawaan map ikut putih", 5, true, function(v)
 cfg.terrain = v
 reapply()
 end)
-makeNumberRow(page, "RADIUS AMAN (stud)", cfg.radius, 47, function(n)
+makeNumberRow(page, "RADIUS AMAN (stud)", cfg.radius, 6, function(n)
 cfg.radius = math.clamp(n, 5, 300)
 if on then reapply() end
 end)
@@ -5607,16 +5610,16 @@ local info = label("Simpan = ingat semua toggle, angka, warna UI & kecepatan SP.
 Font = Enum.Font.Gotham, Size = UDim2.new(1, -6, 0, 52), TextWrapped = true,
 TextYAlignment = Enum.TextYAlignment.Top, LayoutOrder = 1,
 })
-local autoLoad = true
-local setAuto = makeToggle(page, "Muat Otomatis", "Terapkan pengaturan tersimpan saat dijalankan", 2, true, function(v) autoLoad = v end)
-Settings.toggles["Muat Otomatis"] = nil -- pengaturan ini tidak ikut disimpan
+label("Pengaturan yang disimpan dimuat otomatis tiap script dijalankan.", 10, C.muted, page, {
+Font = Enum.Font.Gotham, Size = UDim2.new(1, -6, 0, 30), TextWrapped = true,
+TextYAlignment = Enum.TextYAlignment.Top, LayoutOrder = 2,
+})
 local saveBtn = button("SIMPAN PENGATURAN", 12, page, {
 Size = UDim2.new(1, -6, 0, 34), BackgroundColor3 = C.blue, LayoutOrder = 3,
 })
 corner(saveBtn, 10)
 saveBtn.MouseButton1Click:Connect(function()
 local d = collect()
-d.autoLoad = autoLoad
 _G.JxL_Settings = d
 local ok, json = pcall(function() return HttpService:JSONEncode(d) end)
 if ok and writefile then
@@ -5661,10 +5664,15 @@ end)
 setBtn.MouseButton1Click:Connect(function() sw.setOpen(not sw.open) end)
 settingsAutoLoad = function()
 local d = readSaved()
-if d and d.autoLoad ~= false then
+if not d then return end
 local n = apply(d)
 info.Text = "Pengaturan tersimpan dimuat otomatis (" .. n .. ")."
+task.delay(3, function()
+for k, v in pairs(d.toggles or {}) do
+local t = Settings.toggles[k]
+if t and t.get() ~= v then pcall(t.set, v) end
 end
+end)
 end
 end)
 selectTab("TPSP")
