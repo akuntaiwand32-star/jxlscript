@@ -1,4 +1,4 @@
--- JOKERxLynxx (v13 BETA) - Fitur (Infinity Jump, Noclip, Fly, ESP), Copy Avatar, Anti Lag
+-- NimeroHub (v13 BETA) - Fitur (Infinity Jump, Noclip, Fly, ESP), Copy Avatar, Anti Lag
 print("[JxL] script mulai dijalankan")
 if _G.JxL_Cleanup then pcall(_G.JxL_Cleanup) end
 local statusLbl
@@ -20,7 +20,7 @@ t.TextColor3 = Color3.fromRGB(255, 255, 255)
 t.TextSize = 12
 t.TextWrapped = true
 t.Font = Enum.Font.GothamBold
-t.Text = "JOKERxLynxx: memuat..."
+t.Text = "NimeroHub: memuat..."
 t.Parent = g
 statusLbl = t
 end)
@@ -50,7 +50,7 @@ local errors = {}
 local function secure(name, fn)
 local ok, err = pcall(fn)
 if not ok then
-warn("[JOKERxLynxx] Error di " .. name .. ": " .. tostring(err))
+warn("[NimeroHub] Error di " .. name .. ": " .. tostring(err))
 table.insert(errors, name .. ": " .. tostring(err))
 end
 end
@@ -224,7 +224,7 @@ end
 local function set(v)
 local ok, r = pcall(onChange, v)
 if not ok then
-warn("[JOKERxLynxx] Error toggle " .. title .. ": " .. tostring(r))
+warn("[NimeroHub] Error toggle " .. title .. ": " .. tostring(r))
 return
 end
 if r == false then return end
@@ -299,7 +299,7 @@ Size = UDim2.new(0, 14, 0, 14), Position = UDim2.new(0, 14, 0, 18), BackgroundCo
 }, header)
 corner(dot, 7)
 gradient(dot, C.purple, C.pink, 45)
-label("JOKERxLynxx", 18, C.text, header, {Size = UDim2.new(0, 160, 0, 24), Position = UDim2.new(0, 36, 0, 6)})
+label("NimeroHub", 18, C.text, header, {Size = UDim2.new(0, 160, 0, 24), Position = UDim2.new(0, 36, 0, 6)})
 local betaPill = make("Frame", {
 Size = UDim2.new(0, 38, 0, 15), Position = UDim2.new(0, 152, 0, 10), BackgroundColor3 = Color3.new(1, 1, 1),
 }, header)
@@ -3339,7 +3339,7 @@ makeOpenCard(pages["FITUR"], "Radar Area", "Peta 2D semua area, atau per area", 
 end)
 secure("INFOAKUN", function()
 local CollectionService = game:GetService("CollectionService")
-local sw = makeSubWindow("NIMEROAHUB", "Properti, detail & pengaturan", 310, 360, 58)
+local sw = makeSubWindow("INFO AKUN", "Properti, detail & pengaturan", 310, 360, 58)
 sw.keepOnHide = true
 local list = sw.content
 list.Size = UDim2.new(1, -16, 1, -(52 + 58 + 40))
@@ -3807,7 +3807,7 @@ end
 end)
 end
 end
-makeOpenCard(pages["FITUR"], "Nimeroahub", "Properti, detail & pengaturan (gaya Dex)", 37, sw)
+makeOpenCard(pages["FITUR"], "Info Akun", "Properti, detail & pengaturan (gaya Dex)", 37, sw)
 end)
 secure("PROFILE", function()
 local page = pages["FITUR"]
@@ -5459,11 +5459,11 @@ end)
 selectTab("TPSP")
 if settingsAutoLoad then pcall(settingsAutoLoad) end
 if #errors > 0 then
-setStatus("JOKERxLynxx: siap (error di " .. #errors .. " bagian, cek konsol)", Color3.fromRGB(255, 200, 80), 8)
+setStatus("NimeroHub: siap (error di " .. #errors .. " bagian, cek konsol)", Color3.fromRGB(255, 200, 80), 8)
 else
-setStatus("JOKERxLynxx: siap", Color3.fromRGB(120, 255, 150), 4)
+setStatus("NimeroHub: siap", Color3.fromRGB(120, 255, 150), 4)
 end
 end)
 if not okAll then
-setStatus("JOKERxLynxx ERROR: " .. tostring(errAll), Color3.fromRGB(255, 100, 100))
+setStatus("NimeroHub ERROR: " .. tostring(errAll), Color3.fromRGB(255, 100, 100))
 end
