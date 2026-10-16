@@ -3337,195 +3337,418 @@ end
 end
 makeOpenCard(pages["FITUR"], "Radar Area", "Peta 2D semua area, atau per area", 36, sw)
 end)
-secure("PROPS", function()
-local W, H = 290, 290
-local sw = makeSubWindow("PROPERTIES  -  AKUNMU", "", W, H, 0)
-sw.content.Visible = false
+secure("DEX", function()
+local CollectionService = game:GetService("CollectionService")
+local sw = makeSubWindow("DEX", "Explorer & Properties", 310, 360, 58)
 sw.keepOnHide = true
-local TABS = {"PLAYER", "KARAKTER", "HUMANOID", "ROOT", "HEAD"}
-local tabIdx, query = 1, ""
-local PROPS = {
-Player = {"DisplayName", "UserId", "AccountAge"},
-Model = {},
-Humanoid = {"Health", "MaxHealth", "WalkSpeed", "JumpPower", "HipHeight"},
-BasePart = {"Anchored", "CanCollide", "Transparency", "Size", "Position"},
-}
-local function target(i)
-local ch = player.Character
-if i == 1 then return player end
-if not ch then return nil end
-if i == 2 then return ch end
-if i == 3 then return ch:FindFirstChildOfClass("Humanoid") end
-if i == 4 then return ch:FindFirstChild("HumanoidRootPart") end
-return ch:FindFirstChild("Head")
-end
-local function propList(inst)
-if inst:IsA("Player") then return PROPS.Player end
-if inst:IsA("Humanoid") then return PROPS.Humanoid end
-if inst:IsA("BasePart") then return PROPS.BasePart end
-return PROPS.Model
-end
-local tabBtns = {}
-local tabBar = make("Frame", {Size = UDim2.new(1, -20, 0, 24), Position = UDim2.new(0, 10, 0, 48), BackgroundTransparency = 1}, sw.win)
-make("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder}, tabBar)
+local list = sw.content
+list.Size = UDim2.new(1, -16, 1, -(52 + 58 + 40))
+local tabE = button("EXPLORER", 11, sw.win, {Size = UDim2.new(0.5, -16, 0, 26), Position = UDim2.new(0, 12, 0, 50), BackgroundColor3 = C.purple})
+corner(tabE, 8)
+local tabP = button("PROPERTI", 11, sw.win, {Size = UDim2.new(0.5, -16, 0, 26), Position = UDim2.new(0.5, 4, 0, 50), BackgroundColor3 = C.panel2})
+corner(tabP, 8)
 local search = inputBox("", sw.win, {
-Size = UDim2.new(1, -20, 0, 24), Position = UDim2.new(0, 10, 0, 76), TextSize = 11,
-PlaceholderText = "cari properti...", PlaceholderColor3 = C.muted,
-TextXAlignment = Enum.TextXAlignment.Left,
+Size = UDim2.new(1, -24, 0, 24), Position = UDim2.new(0, 12, 0, 80), TextSize = 11,
+PlaceholderText = "Cari instance...", PlaceholderColor3 = C.muted, TextXAlignment = Enum.TextXAlignment.Center,
 })
-local info = label("", 10, C.muted, sw.win, {Font = Enum.Font.GothamBold, Size = UDim2.new(1, -20, 0, 12), Position = UDim2.new(0, 12, 0, 103)})
-local list = make("ScrollingFrame", {
-Size = UDim2.new(1, -16, 1, -(120 + 8)), Position = UDim2.new(0, 8, 0, 120),
-BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 4,
-CanvasSize = UDim2.new(0, 0, 0, 0), AutomaticCanvasSize = Enum.AutomaticSize.Y,
-}, sw.win)
-make("UIListLayout", {Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder}, list)
-local rows = {} -- {kind, inst, key, box/btn, vtype}
+local bar = make("Frame", {Size = UDim2.new(1, -24, 0, 30), Position = UDim2.new(0, 12, 1, -36), BackgroundTransparency = 1}, sw.win)
+make("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder}, bar)
+local function act(txt, order, col)
+local b = button(txt, 10, bar, {Size = UDim2.new(0.2, -4, 1, 0), BackgroundColor3 = col or C.panel2, LayoutOrder = order})
+corner(b, 8)
+return b
+end
+local bTp, bClone, bDel, bCopy, bRef = act("TP", 1), act("KLON", 2), act("HAPUS", 3, Color3.fromRGB(190, 50, 60)), act("SALIN", 4), act("REFRESH", 5)
+local mode = "E"
+local selected
+local expanded = {}
+local pRows = {}
+local function say(t) sw.sub.Text = t end
+local function esc(s) return (tostring(s):gsub("&", "&amp;"):gsub("<", "&lt;"):gsub(">", "&gt;")) end
+local function kidsOf(i)
+local ok, c = pcall(function() return i:GetChildren() end)
+return ok and c or {}
+end
+local function clearList()
+for _, c in ipairs(list:GetChildren()) do
+if not (c:IsA("UIListLayout") or c:IsA("UIPadding")) then c:Destroy() end
+end
+end
+local function msg(t, order)
+label(t, 11, C.muted, list, {Size = UDim2.new(1, -4, 0, 40), TextWrapped = true, Font = Enum.Font.Gotham, LayoutOrder = order or 1})
+end
+local function r3(n) return tostring(math.floor(n * 1000 + 0.5) / 1000) end
 local function fmt(v)
 local t = typeof(v)
-if t == "number" then
-if v == math.floor(v) then return tostring(v) end
-return (string.format("%.3f", v):gsub("0+$", ""):gsub("%.$", ""))
-elseif t == "Vector3" then return string.format("%.2f, %.2f, %.2f", v.X, v.Y, v.Z)
-elseif t == "Vector2" then return string.format("%.2f, %.2f", v.X, v.Y)
-elseif t == "Color3" then return string.format("%d, %d, %d", v.R * 255, v.G * 255, v.B * 255)
-elseif t == "Instance" then return v:GetFullName()
-elseif t == "CFrame" then local p = v.Position return string.format("%.1f, %.1f, %.1f", p.X, p.Y, p.Z)
-end
+if t == "number" then return r3(v)
+elseif t == "string" then return v
+elseif t == "Vector3" then return r3(v.X) .. ", " .. r3(v.Y) .. ", " .. r3(v.Z)
+elseif t == "Vector2" then return r3(v.X) .. ", " .. r3(v.Y)
+elseif t == "Color3" then return math.floor(v.R * 255 + 0.5) .. ", " .. math.floor(v.G * 255 + 0.5) .. ", " .. math.floor(v.B * 255 + 0.5)
+elseif t == "UDim2" then return r3(v.X.Scale) .. ", " .. v.X.Offset .. ", " .. r3(v.Y.Scale) .. ", " .. v.Y.Offset
+elseif t == "UDim" then return r3(v.Scale) .. ", " .. v.Offset
+elseif t == "CFrame" then local p = v.Position return r3(p.X) .. ", " .. r3(p.Y) .. ", " .. r3(p.Z)
+elseif t == "BrickColor" or t == "EnumItem" or t == "Instance" then return v.Name
+elseif t == "nil" then return "nil" end
 return tostring(v)
 end
-local function parseAs(old, txt)
+local function nums(s)
+local r = {}
+for n in s:gmatch("-?%d+%.?%d*") do table.insert(r, tonumber(n)) end
+return r
+end
+local function parse(old, text)
 local t = typeof(old)
-if t == "number" then return tonumber(txt) end
-if t == "string" then return txt end
-if t == "Vector3" then
-local a, b, c = txt:match("^%s*(-?[%d%.]+)%s*,%s*(-?[%d%.]+)%s*,%s*(-?[%d%.]+)%s*$")
-if a then return Vector3.new(tonumber(a), tonumber(b), tonumber(c)) end
-elseif t == "Color3" then
-local a, b, c = txt:match("^%s*(%d+)%s*,%s*(%d+)%s*,%s*(%d+)%s*$")
-if a then return Color3.fromRGB(tonumber(a), tonumber(b), tonumber(c)) end
+if t == "number" then return tonumber(text)
+elseif t == "string" then return text end
+local n = nums(text)
+if t == "Vector3" and #n >= 3 then return Vector3.new(n[1], n[2], n[3])
+elseif t == "Vector2" and #n >= 2 then return Vector2.new(n[1], n[2])
+elseif t == "Color3" and #n >= 3 then
+if n[1] <= 1 and n[2] <= 1 and n[3] <= 1 and text:find("%.") then return Color3.new(n[1], n[2], n[3]) end
+return Color3.fromRGB(math.clamp(n[1], 0, 255), math.clamp(n[2], 0, 255), math.clamp(n[3], 0, 255))
+elseif t == "UDim2" and #n >= 4 then return UDim2.new(n[1], n[2], n[3], n[4])
+elseif t == "UDim" and #n >= 2 then return UDim.new(n[1], n[2])
+elseif t == "CFrame" and #n >= 3 then return CFrame.new(n[1], n[2], n[3]) * (old - old.Position)
+elseif t == "BrickColor" then
+local ok, b = pcall(BrickColor.new, text)
+return ok and b or nil
 end
 return nil
 end
-local function readRow(r)
-local ok, v
-if r.kind == "attr" then ok, v = true, r.inst:GetAttribute(r.key)
-elseif r.kind == "value" then ok, v = pcall(function() return r.inst.Value end)
-else ok, v = pcall(function() return r.inst[r.key] end) end
-if not ok then return nil end
-return v
+local function pathOf(inst)
+local parts, o = {}, inst
+while o and o ~= game do table.insert(parts, 1, o) o = o.Parent end
+if #parts == 0 then return "game" end
+local s = 'game:GetService("' .. parts[1].ClassName .. '")'
+if parts[1].ClassName ~= parts[1].Name then s = 'game:FindFirstChild("' .. parts[1].Name .. '")' end
+for i = 2, #parts do
+local nm = parts[i].Name
+if nm:match("^[%a_][%w_]*$") then s = s .. "." .. nm else s = s .. '["' .. nm .. '"]' end
 end
-local function writeRow(r, v)
-if v == nil then return end
-if r.kind == "attr" then pcall(function() r.inst:SetAttribute(r.key, v) end)
-elseif r.kind == "value" then pcall(function() r.inst.Value = v end)
-else pcall(function() r.inst[r.key] = v end) end
+return s
 end
-local function setBool(btn, v)
-btn.Text = v and "true" or "false"
-btn.BackgroundColor3 = v and Color3.fromRGB(52, 211, 153) or C.panel2
-btn.TextColor3 = v and Color3.fromRGB(8, 30, 22) or C.text
-end
-local function clearRows()
-for _, r in ipairs(rows) do r.card:Destroy() end
-table.clear(rows)
-end
-local function addRow(kind, inst, key, v, order)
+local PD = {
+{"Data", "Instance", {"Name", "ClassName", "Parent", "Archivable"}},
+{"Transform", "BasePart", {"Position", "Orientation", "Size", "CFrame"}},
+{"Appearance", "BasePart", {"Color", "Material", "Transparency", "Reflectance", "CastShadow"}},
+{"Behavior", "BasePart", {"Anchored", "CanCollide", "CanTouch", "CanQuery", "Massless", "Locked", "CollisionGroup", "AssemblyLinearVelocity", "AssemblyAngularVelocity", "Mass"}},
+{"Part", "Part", {"Shape"}},
+{"Part", "MeshPart", {"MeshId", "TextureID"}},
+{"Data", "Model", {"PrimaryPart", "WorldPivot"}},
+{"Humanoid", "Humanoid", {"DisplayName", "Health", "MaxHealth", "WalkSpeed", "JumpPower", "JumpHeight", "UseJumpPower", "HipHeight", "AutoRotate", "PlatformStand", "Sit", "RigType", "RootPart", "DisplayDistanceType"}},
+{"Player", "Player", {"DisplayName", "UserId", "AccountAge", "Team", "Neutral", "Character", "CameraMode", "MembershipType"}},
+{"Behavior", "ProximityPrompt", {"ActionText", "ObjectText", "HoldDuration", "MaxActivationDistance", "RequiresLineOfSight", "Enabled", "KeyboardKeyCode", "ClickablePrompt", "Style"}},
+{"Behavior", "ClickDetector", {"MaxActivationDistance", "CursorIcon"}},
+{"Data", "Tool", {"CanBeDropped", "RequiresHandle", "Enabled", "ToolTip", "Grip"}},
+{"Data", "Accessory", {"AccessoryType", "AttachmentPoint"}},
+{"Data", "Sound", {"SoundId", "Volume", "Playing", "Looped", "PlaybackSpeed", "TimePosition", "RollOffMaxDistance"}},
+{"Appearance", "Light", {"Brightness", "Color", "Range", "Enabled", "Shadows"}},
+{"Data", "LuaSourceContainer", {"Disabled"}},
+{"Data", "ValueBase", {"Value"}},
+{"Data", "Attachment", {"Position", "Orientation", "WorldPosition", "Visible"}},
+{"Data", "JointInstance", {"Part0", "Part1", "C0", "C1", "Enabled"}},
+{"Appearance", {"Decal", "Texture"}, {"Texture", "Transparency", "Face", "Color3"}},
+{"Data", "ScreenGui", {"Enabled", "DisplayOrder", "ResetOnSpawn", "IgnoreGuiInset"}},
+{"Data", "BillboardGui", {"Size", "StudsOffset", "AlwaysOnTop", "MaxDistance", "Adornee"}},
+{"Appearance", "GuiObject", {"Visible", "Position", "Size", "AnchorPoint", "Rotation", "BackgroundColor3", "BackgroundTransparency", "BorderSizePixel", "ZIndex", "LayoutOrder", "ClipsDescendants", "Active"}},
+{"Text", {"TextLabel", "TextButton", "TextBox"}, {"Text", "TextColor3", "TextSize", "Font", "TextWrapped", "RichText", "TextTransparency", "TextXAlignment"}},
+{"Image", {"ImageLabel", "ImageButton"}, {"Image", "ImageColor3", "ImageTransparency", "ScaleType"}},
+{"Data", "Camera", {"FieldOfView", "CameraType", "CameraSubject", "CFrame", "Focus"}},
+{"Data", "Lighting", {"Brightness", "ClockTime", "TimeOfDay", "FogStart", "FogEnd", "Ambient", "OutdoorAmbient", "GlobalShadows"}},
+{"Data", "Workspace", {"Gravity", "FallenPartsDestroyHeight", "StreamingEnabled", "CurrentCamera"}},
+{"Data", "Team", {"TeamColor", "AutoAssignable"}},
+}
+local readOnly = {ClassName = true, Mass = true, AccountAge = true, UserId = true, WorldPosition = true, MembershipType = true, RootPart = true, Character = true, CurrentCamera = true, StreamingEnabled = true}
+local function propRow(order, name, get, set, ro)
+local row = make("Frame", {Size = UDim2.new(1, -4, 0, 28), BackgroundColor3 = C.panel, BackgroundTransparency = 0.45, LayoutOrder = order}, list)
+corner(row, 6)
+label(name, 11, C.muted, row, {Size = UDim2.new(0.42, -6, 1, 0), Position = UDim2.new(0, 8, 0, 0), TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd})
+local box = inputBox("", row, {Size = UDim2.new(0.58, -8, 1, -6), Position = UDim2.new(0.42, 0, 0, 3), TextSize = 11})
+local btn = button("", 11, row, {Size = UDim2.new(0.58, -8, 1, -6), Position = UDim2.new(0.42, 0, 0, 3), BackgroundColor3 = C.panel2})
+corner(btn, 6)
+local function update()
+local ok, v = pcall(get)
+if not ok then return end
 local t = typeof(v)
-local card = make("Frame", {Size = UDim2.new(1, -6, 0, 34), BackgroundColor3 = C.panel, BackgroundTransparency = 0.25, LayoutOrder = order}, list)
-corner(card, 10)
-stroke(card, C.purple, 1, 0.6)
-label(key, 11, C.text, card, {Size = UDim2.new(0.45, -10, 1, 0), Position = UDim2.new(0, 10, 0, 0), TextTruncate = Enum.TextTruncate.AtEnd})
-local r = {kind = kind, inst = inst, key = key, card = card, vtype = t}
-if t == "boolean" then
-local b = button("", 12, card, {Size = UDim2.new(0.55, -8, 1, -8), Position = UDim2.new(0.45, 0, 0, 4), BackgroundColor3 = C.panel2})
-corner(b, 8)
-setBool(b, v)
-b.MouseButton1Click:Connect(function()
-local cur = readRow(r)
-if type(cur) == "boolean" then writeRow(r, not cur) setBool(b, not cur) end
-end)
-r.btn = b
-else
-local editable = (t == "number" or t == "string" or t == "Vector3" or t == "Color3")
-local box = inputBox(fmt(v), card, {
-Size = UDim2.new(0.55, -8, 1, -8), Position = UDim2.new(0.45, 0, 0, 4), TextSize = 12,
-TextXAlignment = Enum.TextXAlignment.Left, TextEditable = editable, TextSize = 11,
-TextTruncate = Enum.TextTruncate.AtEnd, ClearTextOnFocus = false,
-})
-local bs = box:FindFirstChildOfClass("UIStroke")
-if bs then bs.Thickness = 1 end
-box.FocusLost:Connect(function()
-if not editable then box.Text = fmt(readRow(r)) return end
-local old = readRow(r)
-local nv = parseAs(old, box.Text)
-if nv ~= nil then writeRow(r, nv) end
-box.Text = fmt(readRow(r))
-end)
-r.box = box
+local useBtn = (t == "boolean" or t == "EnumItem" or t == "Instance" or t == "nil")
+btn.Visible = useBtn
+box.Visible = not useBtn
+if useBtn then
+btn.Text = fmt(v)
+btn.TextColor3 = (t == "boolean") and (v and Color3.fromRGB(90, 220, 130) or Color3.fromRGB(255, 110, 110)) or C.text
+elseif not box:IsFocused() then
+box.Text = fmt(v)
 end
-table.insert(rows, r)
+box.TextEditable = not ro
 end
-local function rebuild()
-clearRows()
-local inst = target(tabIdx)
-for i, b in ipairs(tabBtns) do
-b.BackgroundColor3 = (i == tabIdx) and C.purple or C.panel2
-end
-if not inst then
-info.Text = TABS[tabIdx] .. "  •  tidak tersedia (karakter belum ada)"
+btn.MouseButton1Click:Connect(function()
+local ok, v = pcall(get)
+if not ok then return end
+local t = typeof(v)
+if t == "Instance" then
+selected = v
+mode = "P"
+if sw.refresh then sw.refresh() end
 return
 end
-local items = {}
-for _, k in ipairs(propList(inst)) do
-local ok, v = pcall(function() return inst[k] end)
-if ok and v ~= nil then table.insert(items, {"prop", inst, k, v}) end
+if ro then return end
+local ok2, err
+if t == "boolean" then ok2, err = pcall(set, not v)
+elseif t == "EnumItem" then
+local items = v.EnumType:GetEnumItems()
+local idx = 1
+for i, it in ipairs(items) do if it == v then idx = i end end
+ok2, err = pcall(set, items[idx % #items + 1])
 end
-for k, v in pairs(inst:GetAttributes()) do table.insert(items, {"attr", inst, tostring(k), v}) end
-table.sort(items, function(a, b) return a[3]:lower() < b[3]:lower() end)
-local q = query:lower()
-local n = 0
-for _, it in ipairs(items) do
-if q == "" or it[3]:lower():find(q, 1, true) then
-n = n + 1
-addRow(it[1], it[2], it[3], it[4], n)
-end
-end
-info.Text = TABS[tabIdx] .. "  •  " .. inst.ClassName .. "  •  " .. n .. " properti"
-end
-for i, name in ipairs(TABS) do
-local b = button(name, 8, tabBar, {Size = UDim2.new(1 / #TABS, -4, 1, 0), BackgroundColor3 = C.panel2, LayoutOrder = i})
-corner(b, 8)
-b.MouseButton1Click:Connect(function() tabIdx = i rebuild() end)
-tabBtns[i] = b
-end
-search:GetPropertyChangedSignal("Text"):Connect(function()
-query = search.Text
-rebuild()
+if ok2 == false then say("Gagal: " .. tostring(err):sub(1, 50)) end
+update()
 end)
+box.FocusLost:Connect(function()
+if ro then update() return end
+local ok, v = pcall(get)
+if not ok then return end
+local nv = parse(v, box.Text)
+if nv == nil then say("Format nilai salah") update() return end
+local ok2, err = pcall(set, nv)
+if not ok2 then say("Gagal: " .. tostring(err):sub(1, 50)) else say("Tersimpan: " .. name) end
+update()
+end)
+update()
+table.insert(pRows, update)
+end
+local function header(txt, order)
+label(txt, 11, C.pink, list, {Size = UDim2.new(1, -4, 0, 20), LayoutOrder = order, TextXAlignment = Enum.TextXAlignment.Left})
+end
+local function renderProps()
+clearList()
+pRows = {}
+local inst = selected
+if not inst or (inst ~= game and not inst.Parent) then
+msg("Pilih instance di tab EXPLORER dulu (ketuk namanya).")
+return
+end
+local q = search.Text:lower()
+local order = 0
+order = order + 1
+label(inst.Name .. "  [" .. inst.ClassName .. "]", 12, C.text, list, {Size = UDim2.new(1, -4, 0, 18), LayoutOrder = order, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd})
+order = order + 1
+label(pathOf(inst), 9, C.muted, list, {Font = Enum.Font.Gotham, Size = UDim2.new(1, -4, 0, 26), LayoutOrder = order, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top})
+local seen = {}
+for _, d in ipairs(PD) do
+local cls, match = d[2], false
+if type(cls) == "table" then
+for _, c in ipairs(cls) do if inst:IsA(c) then match = true end end
+else
+match = inst:IsA(cls)
+end
+if match then
+local hdrDone = false
+for _, pn in ipairs(d[3]) do
+if not seen[pn] and (q == "" or pn:lower():find(q, 1, true)) then
+local ok = pcall(function() return inst[pn] end)
+if ok then
+seen[pn] = true
+if not hdrDone then
+hdrDone = true
+order = order + 1
+header(d[1]:upper() .. "  (" .. (type(cls) == "table" and cls[1] or cls) .. ")", order)
+end
+order = order + 1
+propRow(order, pn, function() return inst[pn] end, function(v) inst[pn] = v end, readOnly[pn])
+end
+end
+end
+end
+end
+local okA, attrs = pcall(function() return inst:GetAttributes() end)
+if okA and attrs then
+local keys = {}
+for k in pairs(attrs) do if q == "" or tostring(k):lower():find(q, 1, true) then table.insert(keys, k) end end
+table.sort(keys)
+if #keys > 0 then
+order = order + 1
+header("ATTRIBUTES", order)
+for _, k in ipairs(keys) do
+order = order + 1
+propRow(order, k, function() return inst:GetAttribute(k) end, function(v) inst:SetAttribute(k, v) end, false)
+end
+end
+end
+local okT, tags = pcall(function() return CollectionService:GetTags(inst) end)
+if okT and tags and #tags > 0 and q == "" then
+order = order + 1
+header("TAGS", order)
+for _, tg in ipairs(tags) do
+order = order + 1
+label(tg, 11, C.text, list, {Size = UDim2.new(1, -4, 0, 20), LayoutOrder = order, TextXAlignment = Enum.TextXAlignment.Left})
+end
+end
+if order <= 2 then msg("Tidak ada properti yang cocok.", 3) end
+end
+local MAXROWS = 300
+local function jumpTo(inst)
+local o = inst.Parent
+while o and o ~= game do expanded[o] = true o = o.Parent end
+selected = inst
+end
+local renderTree
+local function treeRow(n, inst, depth, hasKids)
+local sel = (inst == selected)
+local row = make("TextButton", {
+Text = "", Size = UDim2.new(1, -4, 0, 26), BackgroundColor3 = sel and C.purple or C.panel,
+BackgroundTransparency = sel and 0.3 or 0.5, AutoButtonColor = true, LayoutOrder = n,
+}, list)
+corner(row, 6)
+local indent = depth * 12
+if hasKids then
+local ar = button(expanded[inst] and "v" or ">", 12, row, {
+Size = UDim2.new(0, 24, 1, 0), Position = UDim2.new(0, 2 + indent, 0, 0), BackgroundTransparency = 1, TextColor3 = C.pink,
+})
+ar.MouseButton1Click:Connect(function()
+expanded[inst] = not expanded[inst] or nil
+renderTree()
+end)
+end
+local nm = label("", 11, C.text, row, {
+Size = UDim2.new(1, -(30 + indent), 1, 0), Position = UDim2.new(0, 26 + indent, 0, 0),
+TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd, RichText = true,
+})
+nm.Text = esc(inst.Name) .. '  <font color="#8b8ba8" size="9">' .. esc(inst.ClassName) .. "</font>"
+row.MouseButton1Click:Connect(function()
+selected = inst
+say(inst.Name .. "  [" .. inst.ClassName .. "]")
+renderTree()
+end)
+return row
+end
+function renderTree()
+local keep = list.CanvasPosition
+clearList()
+local q = search.Text:lower()
+local n = 0
+if q ~= "" then
+local found = 0
+for _, d in ipairs(game:GetDescendants()) do
+if d.Name:lower():find(q, 1, true) then
+found = found + 1
+n = n + 1
+local row = treeRow(n, d, 0, false)
+row.MouseButton1Click:Connect(function()
+jumpTo(d)
+search.Text = ""
+end)
+if found >= 120 then break end
+end
+end
+if found == 0 then msg("Tidak ditemukan.") end
+return
+end
+local function addNode(inst, depth)
+if n >= MAXROWS then return end
+n = n + 1
+local kids = kidsOf(inst)
+treeRow(n, inst, depth, #kids > 0)
+if expanded[inst] then
+for i, c in ipairs(kids) do
+if i > 150 then
+n = n + 1
+label("... +" .. (#kids - 150) .. " lainnya (pakai pencarian)", 10, C.muted, list, {Size = UDim2.new(1, -4, 0, 20), LayoutOrder = n, Font = Enum.Font.Gotham, TextXAlignment = Enum.TextXAlignment.Left, Position = UDim2.new(0, 26 + depth * 12, 0, 0)})
+break
+end
+addNode(c, depth + 1)
+end
+end
+end
+local ch = player.Character
+if ch then
+n = n + 1
+local sc = make("TextButton", {Text = "", Size = UDim2.new(1, -4, 0, 26), BackgroundColor3 = C.blue, BackgroundTransparency = 0.5, LayoutOrder = n}, list)
+corner(sc, 6)
+label("* Karakterku", 11, C.text, sc, {Position = UDim2.new(0, 10, 0, 0), TextXAlignment = Enum.TextXAlignment.Left})
+sc.MouseButton1Click:Connect(function() jumpTo(ch) renderTree() end)
+end
+local roots = game:GetChildren()
+table.sort(roots, function(a, b)
+if a == workspace then return true elseif b == workspace then return false end
+return a.Name < b.Name
+end)
+for _, r in ipairs(roots) do addNode(r, 0) end
+task.defer(function() list.CanvasPosition = keep end)
+end
+function sw.refresh()
+tabE.BackgroundColor3 = (mode == "E") and C.purple or C.panel2
+tabP.BackgroundColor3 = (mode == "P") and C.purple or C.panel2
+search.PlaceholderText = (mode == "E") and "Cari instance..." or "Cari properti..."
+if mode == "E" then renderTree() else renderProps() end
+end
+tabE.MouseButton1Click:Connect(function() mode = "E" search.Text = "" sw.refresh() end)
+tabP.MouseButton1Click:Connect(function() mode = "P" search.Text = "" sw.refresh() end)
+local token = 0
+search:GetPropertyChangedSignal("Text"):Connect(function()
+token = token + 1
+local my = token
+task.delay(0.35, function() if my == token and sw.open then sw.refresh() end end)
+end)
+local function posOf(i)
+if i:IsA("BasePart") then return i.Position end
+if i:IsA("Model") then local ok, cf = pcall(function() return i:GetPivot() end) if ok then return cf.Position end end
+if i:IsA("Attachment") then return i.WorldPosition end
+local p = i:FindFirstChildWhichIsA("BasePart", true)
+return p and p.Position
+end
+bTp.MouseButton1Click:Connect(function()
+if not selected then say("Pilih instance dulu") return end
+local pos, h = posOf(selected), getHRP()
+if not pos or not h then say("Tidak bisa teleport ke item ini") return end
+h.CFrame = CFrame.new(pos + Vector3.new(0, 5, 0))
+say("Teleport ke " .. selected.Name)
+end)
+bClone.MouseButton1Click:Connect(function()
+if not selected or not selected.Parent then say("Pilih instance dulu") return end
+local ok, c = pcall(function() local x = selected:Clone() x.Parent = selected.Parent return x end)
+say(ok and "Diklon" or "Gagal mengklon")
+if mode == "E" then renderTree() end
+end)
+local delArmed = false
+bDel.MouseButton1Click:Connect(function()
+if not selected or not selected.Parent then say("Pilih instance dulu") return end
+if not delArmed then
+delArmed = true
+bDel.Text = "YAKIN?"
+task.delay(2.5, function() delArmed = false bDel.Text = "HAPUS" end)
+return
+end
+delArmed = false
+bDel.Text = "HAPUS"
+local nm = selected.Name
+local ok = pcall(function() selected:Destroy() end)
+say(ok and ("Dihapus: " .. nm) or "Gagal menghapus")
+selected = nil
+sw.refresh()
+end)
+bCopy.MouseButton1Click:Connect(function()
+if not selected then say("Pilih instance dulu") return end
+local fn = setclipboard or toclipboard
+if fn then pcall(fn, pathOf(selected)) say("Path disalin") else say("Executor tanpa clipboard") end
+end)
+bRef.MouseButton1Click:Connect(function() sw.refresh() say("Diperbarui") end)
 local prev = sw.onChange
 sw.onChange = function(v)
 if prev then prev(v) end
 if v then
-rebuild()
+sw.refresh()
 task.spawn(function()
 while sw.open and gui.Parent do
-task.wait(0.6)
-for _, r in ipairs(rows) do
-if r.card.Parent then
-local cur = readRow(r)
-if cur ~= nil then
-if r.btn and type(cur) == "boolean" then setBool(r.btn, cur)
-elseif r.box and not r.box:IsFocused() then r.box.Text = fmt(cur) end
+if mode == "P" then
+for _, u in ipairs(pRows) do pcall(u) end
 end
-end
-end
+task.wait(0.8)
 end
 end)
 end
 end
-track(player.CharacterAdded:Connect(function() task.delay(1, function() if sw.open then rebuild() end end) end))
-makeOpenCard(pages["FITUR"], "Properti Akun", "Lihat & ubah nilai akun / karakter", 37, sw)
+makeOpenCard(pages["FITUR"], "Dex Explorer", "Explorer & Properties seperti Dex", 37, sw)
 end)
 secure("PROFILE", function()
 local page = pages["FITUR"]
@@ -4256,18 +4479,22 @@ AutomaticCanvasSize = Enum.AutomaticSize.X, ScrollingDirection = Enum.ScrollingD
 }, sw.win)
 make("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder}, sortBar)
 local idBox = inputBox("", sw.win, {
-Size = UDim2.new(1, -176, 0, 30), Position = UDim2.new(0, 12, 1, -38), TextSize = 11,
+Size = UDim2.new(1, -234, 0, 30), Position = UDim2.new(0, 12, 1, -38), TextSize = 11,
 PlaceholderText = "Tautan / ID...", PlaceholderColor3 = C.muted,
 TextXAlignment = Enum.TextXAlignment.Center,
 })
 local useBtn = button("PAKAI", 11, sw.win, {
-Size = UDim2.new(0, 70, 0, 30), Position = UDim2.new(1, -158, 1, -38), BackgroundColor3 = C.purple,
+Size = UDim2.new(0, 58, 0, 30), Position = UDim2.new(1, -216, 1, -38), BackgroundColor3 = C.purple,
 })
 corner(useBtn, 8)
 local offBtn = button("LEPAS SEMUA", 10, sw.win, {
-Size = UDim2.new(0, 80, 0, 30), Position = UDim2.new(1, -88, 1, -38), BackgroundColor3 = C.panel2,
+Size = UDim2.new(0, 84, 0, 30), Position = UDim2.new(1, -152, 1, -38), BackgroundColor3 = C.panel2,
 })
 corner(offBtn, 8)
+local origBtn = button("ASLI", 10, sw.win, {
+Size = UDim2.new(0, 56, 0, 30), Position = UDim2.new(1, -62, 1, -38), BackgroundColor3 = Color3.fromRGB(190, 50, 60),
+})
+corner(origBtn, 8)
 local cats = {
 {"SEMUA", nil},
 {"AKSESORI", {"Hat", "FaceAccessory", "NeckAccessory", "ShoulderAccessory", "FrontAccessory", "BackAccessory", "WaistAccessory"}},
@@ -4428,19 +4655,20 @@ local function setWorn(id, bundle, want)
 if busy then say("Tunggu sebentar...") return end
 busy = true
 task.spawn(function()
+local okRun, errRun = pcall(function()
 local hum = getHum()
-if not hum then say("Karakter belum siap") busy = false return end
-if #worn == 0 then original = nil end
+if not hum then say("Karakter belum siap") return end
+if #worn == 0 and want then original = nil end -- tampilan asli diambil hanya saat mulai memakai, bukan saat melepas
 if bundle then
 if want then
 local ids = bundleAssets(id)
-if not ids or #ids == 0 then say("Isi bundle tidak terbaca") busy = false return end
+if not ids or #ids == 0 then say("Isi bundle tidak terbaca") return end
 local n = 0
 for _, aid in ipairs(ids) do
 local e = makeEntry(aid)
 if e then e.bundle = id removeId(aid) table.insert(worn, e) n = n + 1 end
 end
-if n == 0 then say("Bundle tidak didukung") busy = false return end
+if n == 0 then say("Bundle tidak didukung") return end
 bundleWorn[id] = true
 else
 for i = #worn, 1, -1 do if worn[i].bundle == id then table.remove(worn, i) end end
@@ -4449,7 +4677,7 @@ end
 else
 if want then
 local e, why = makeEntry(id)
-if not e then say("Gagal: " .. tostring(why)) busy = false return end
+if not e then say("Gagal: " .. tostring(why)) return end
 removeId(id)
 table.insert(worn, e)
 else
@@ -4466,6 +4694,8 @@ removeId(id)
 end
 end
 say(ok and (want and "Terpasang" or "Dilepas") or ("Gagal: " .. tostring(err)))
+end)
+if not okRun then say("Error: " .. tostring(errRun)) end
 busy = false
 refreshRows()
 end)
@@ -4610,24 +4840,53 @@ local bundle = t:lower():find("bundle", 1, true) ~= nil
 setWorn(id, bundle, true)
 idBox.Text = ""
 end)
+local function clearTagged()
+local _, ch = getHum()
+if ch then
+for _, c in ipairs(ch:GetChildren()) do
+if c:IsA("Accessory") and c:GetAttribute("JxLCat") then c:Destroy() end
+end
+end
+end
 offBtn.MouseButton1Click:Connect(function()
 if busy then return end
 busy = true
 task.spawn(function()
+pcall(function()
 worn, bundleWorn = {}, {}
-local hum, ch = getHum()
-local ok = false
-if ch then
-for _, c in ipairs(ch:GetChildren()) do
-if c:IsA("Accessory") and c:GetAttribute("JxLCat") then c:Destroy() ok = true end
-end
-end
+local hum = getHum()
+clearTagged()
+local ok = true
 if hum and original and hadSlots then
-ok = pcall(function() hum:ApplyDescription(original) end) or ok
+ok = pcall(function() hum:ApplyDescription(original) end)
 end
 hadSlots = false
 original = nil
-say(ok and "Semua item katalog dilepas" or "Dilepas (respawn kalau masih tersisa)")
+say(ok and "Semua item katalog dilepas" or "Dilepas sebagian. Tekan ASLI untuk reset penuh")
+end)
+busy = false
+refreshRows()
+end)
+end)
+origBtn.MouseButton1Click:Connect(function()
+if busy then return end
+busy = true
+say("Memuat avatar asli...")
+task.spawn(function()
+pcall(function()
+worn, bundleWorn = {}, {}
+clearTagged()
+local hum = getHum()
+local ok, d = pcall(function() return Players:GetHumanoidDescriptionFromUserId(player.UserId) end)
+if hum and ok and d then
+local ok2 = pcall(function() hum:ApplyDescription(d) end)
+say(ok2 and "Avatar asli dikembalikan" or "Gagal. Coba respawn")
+else
+say("Gagal membaca avatar akun. Coba respawn")
+end
+hadSlots = false
+original = nil
+end)
 busy = false
 refreshRows()
 end)
