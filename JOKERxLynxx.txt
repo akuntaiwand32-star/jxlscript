@@ -305,11 +305,20 @@ local mainStrokeGrad = gradient(mainStroke, C.purple, C.pink, 45)
 glass(main)
 local mainScale = make("UIScale", {Scale = 1}, main)
 local header = make("Frame", {Size = UDim2.new(1, 0, 0, HEAD_H), BackgroundTransparency = 1}, main)
-local dot = make("Frame", {
-Size = UDim2.new(0, 14, 0, 14), Position = UDim2.new(0, 14, 0, 18), BackgroundColor3 = Color3.new(1, 1, 1),
+do
+local ring = make("Frame", {
+Size = UDim2.new(0, 26, 0, 26), Position = UDim2.new(0, 7, 0, 12), BackgroundColor3 = C.panel2,
 }, header)
-corner(dot, 7)
-gradient(dot, C.purple, C.pink, 45)
+corner(ring, 13)
+local ringSt = stroke(ring, C.purple, 2)
+gradient(ringSt, C.purple, C.pink, 45)
+local btn = make("ImageButton", {
+Size = UDim2.new(1, -4, 1, -4), Position = UDim2.new(0, 2, 0, 2), BackgroundTransparency = 1,
+AutoButtonColor = false, Image = "",
+}, ring)
+corner(btn, 11)
+Settings.profile = {btn = btn, ring = ring, ringSt = ringSt}
+end
 label("NimeroHub", 18, C.text, header, {Size = UDim2.new(0, 160, 0, 24), Position = UDim2.new(0, 36, 0, 6)})
 local betaPill = make("Frame", {
 Size = UDim2.new(0, 38, 0, 15), Position = UDim2.new(0, 152, 0, 10), BackgroundColor3 = Color3.new(1, 1, 1),
@@ -3597,41 +3606,108 @@ end
 makeOpenCard(pages["FITUR"], "Info Akun", "Properti, detail & pengaturan (gaya Dex)", 37, sw)
 end)
 secure("PROFILE", function()
-local page = pages["FITUR"]
-local card = make("Frame", {Size = UDim2.new(1, -6, 0, 76), BackgroundColor3 = C.panel, BackgroundTransparency = 0.2, LayoutOrder = 0}, page)
-corner(card, 12)
-stroke(card, C.purple, 1, 0.5)
-local ring = make("Frame", {Size = UDim2.new(0, 52, 0, 52), Position = UDim2.new(0, 10, 0.5, -26), BackgroundColor3 = C.panel2}, card)
-corner(ring, 26)
+local P = Settings.profile
+if not P then return end
+local PH = 134
+local card = make("Frame", {
+Name = "ProfileCard", Size = UDim2.new(1, -16, 0, PH), Position = UDim2.new(0, 8, 0, HEAD_H + 4),
+BackgroundColor3 = C.bg, BackgroundTransparency = 0.05, Visible = false, ZIndex = 50, Active = true,
+}, main)
+corner(card, 14)
+local cardSt = stroke(card, C.purple, 1.5)
+gradient(cardSt, C.purple, C.pink, 45)
+local cscale = make("UIScale", {Scale = 1}, card)
+-- bar aksen tipis di atas kartu
+local accent = make("Frame", {
+Size = UDim2.new(1, -28, 0, 2), Position = UDim2.new(0, 14, 0, 0), BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0,
+}, card)
+gradient(accent, C.purple, C.pink, 0)
+-- avatar besar dengan cincin pelangi
+local ring = make("Frame", {Size = UDim2.new(0, 60, 0, 60), Position = UDim2.new(0, 12, 0, 14), BackgroundColor3 = C.panel2}, card)
+corner(ring, 30)
 local rs = make("UIStroke", {Thickness = 3, ApplyStrokeMode = Enum.ApplyStrokeMode.Border}, ring)
-make("UIGradient", {Color = ColorSequence.new({
+local rainbow = make("UIGradient", {Color = ColorSequence.new({
 ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 60, 60)),
 ColorSequenceKeypoint.new(0.25, Color3.fromRGB(255, 220, 60)),
 ColorSequenceKeypoint.new(0.5, Color3.fromRGB(60, 220, 120)),
 ColorSequenceKeypoint.new(0.75, Color3.fromRGB(60, 140, 255)),
 ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 60, 60)),
 })}, rs)
-local img = make("ImageLabel", {Size = UDim2.new(1, -6, 1, -6), Position = UDim2.new(0, 3, 0, 3), BackgroundTransparency = 1}, ring)
-corner(img, 24)
+local img = make("ImageLabel", {Size = UDim2.new(1, -8, 1, -8), Position = UDim2.new(0, 4, 0, 4), BackgroundTransparency = 1}, ring)
+corner(img, 26)
 task.spawn(function()
 local ok, url = pcall(function()
 return Players:GetUserThumbnailAsync(player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
 end)
-if ok and url then img.Image = url end
-end)
-label(player.DisplayName, 15, C.text, card, {Size = UDim2.new(1, -78, 0, 18), Position = UDim2.new(0, 70, 0, 6), TextTruncate = Enum.TextTruncate.AtEnd})
-label("@" .. player.Name .. "  |  ID: " .. player.UserId, 10, C.muted, card, {Font = Enum.Font.Gotham, Size = UDim2.new(1, -78, 0, 14), Position = UDim2.new(0, 70, 0, 26), TextTruncate = Enum.TextTruncate.AtEnd})
-local prem = player.MembershipType == Enum.MembershipType.Premium and "Premium" or "Non-Premium"
-label("Umur akun: " .. player.AccountAge .. " hari  |  " .. prem, 10, C.muted, card, {Font = Enum.Font.Gotham, Size = UDim2.new(1, -78, 0, 14), Position = UDim2.new(0, 70, 0, 41), TextTruncate = Enum.TextTruncate.AtEnd})
-local srv = label("", 10, C.muted, card, {Font = Enum.Font.Gotham, Size = UDim2.new(1, -78, 0, 14), Position = UDim2.new(0, 70, 0, 56), TextTruncate = Enum.TextTruncate.AtEnd})
-local function upd() srv.Text = "Server: " .. #Players:GetPlayers() .. "/" .. Players.MaxPlayers .. " pemain" end
-upd()
-task.spawn(function()
-while gui.Parent do
-task.wait(3)
-pcall(upd)
+if ok and url then
+img.Image = url
+P.btn.Image = url
 end
 end)
+label(player.DisplayName, 16, C.text, card, {
+Size = UDim2.new(1, -92, 0, 22), Position = UDim2.new(0, 82, 0, 18), TextTruncate = Enum.TextTruncate.AtEnd,
+})
+label("@" .. player.Name, 11, C.pink, card, {
+Font = Enum.Font.Gotham, Size = UDim2.new(1, -92, 0, 16), Position = UDim2.new(0, 82, 0, 41), TextTruncate = Enum.TextTruncate.AtEnd,
+})
+-- chip info 2 x 2
+local chipW = (254 - 24 - 6) / 2
+local function chip(col, row, text, color)
+local f = make("Frame", {
+Size = UDim2.new(0, chipW, 0, 24), Position = UDim2.new(0, 12 + col * (chipW + 6), 0, 84 + row * 30),
+BackgroundColor3 = C.panel, BackgroundTransparency = 0.15,
+}, card)
+corner(f, 8)
+stroke(f, color or C.purple, 1, 0.6)
+local l = label(text, 10, color or C.text, f, {
+Font = Enum.Font.GothamMedium, Size = UDim2.new(1, -10, 1, 0), Position = UDim2.new(0, 5, 0, 0),
+TextXAlignment = Enum.TextXAlignment.Center, TextTruncate = Enum.TextTruncate.AtEnd,
+})
+return l
+end
+chip(0, 0, "ID  " .. player.UserId)
+chip(1, 0, "Umur  " .. player.AccountAge .. " hari")
+local isPrem = player.MembershipType == Enum.MembershipType.Premium
+chip(0, 1, isPrem and "Premium" or "Non-Premium", isPrem and Color3.fromRGB(255, 200, 60) or nil)
+local srv = chip(1, 1, "")
+local function upd() srv.Text = "Server  " .. #Players:GetPlayers() .. "/" .. Players.MaxPlayers end
+upd()
+-- buka / tutup
+local open = false
+local function setOpen(v)
+if v == open then return end
+open = v
+if v then
+upd()
+cscale.Scale = 0.9
+card.Visible = true
+TweenService:Create(cscale, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
+else
+TweenService:Create(cscale, TweenInfo.new(0.12), {Scale = 0.9}):Play()
+task.delay(0.12, function() if not open then card.Visible = false end end)
+end
+end
+P.btn.MouseButton1Click:Connect(function()
+playClick(1)
+setOpen(not open)
+end)
+track(main:GetPropertyChangedSignal("Visible"):Connect(function()
+if not main.Visible then open = false card.Visible = false end
+end))
+track(main:GetPropertyChangedSignal("Size"):Connect(function()
+if main.Size.Y.Offset < FULL_H - 5 then open = false card.Visible = false end
+end))
+local t, acc = 0, 0
+track(RunService.Heartbeat:Connect(function(dt)
+if not open then return end
+t = t + dt
+rainbow.Rotation = (t * 90) % 360
+acc = acc + dt
+if acc >= 3 then
+acc = 0
+pcall(upd)
+end
+end))
 end)
 secure("NOTIFLOG", function()
 local page = pages["NOTIF"]
