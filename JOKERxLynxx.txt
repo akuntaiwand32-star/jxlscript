@@ -129,6 +129,13 @@ end
 local function corner(o, r) return make("UICorner", {CornerRadius = UDim.new(0, r or 8)}, o) end
 local themeGrads, themeStrokes, themeScrolls, themeTexts = {}, {}, {}, {}
 C.accent = C.pink
+local glassFrames = {}
+local function glass(f)
+make("UIGradient", {Color = ColorSequence.new(Color3.new(1,1,1), Color3.fromRGB(150,150,170)), Transparency = NumberSequence.new(0, 0.3), Rotation = 60}, f)
+local hl = make("Frame", {Size = UDim2.new(1, -32, 0, 1), Position = UDim2.new(0, 16, 0, 1), BackgroundColor3 = Color3.new(1,1,1), BackgroundTransparency = 0.8, BorderSizePixel = 0, ZIndex = 5}, f)
+table.insert(glassFrames, f)
+return hl
+end
 local function regText(o)
 local role
 if o.TextColor3 == C.text then role = "text"
@@ -288,11 +295,12 @@ end
 local W, FULL_H, HEAD_H = 270, 290, 50
 local main = make("Frame", {
 Size = UDim2.new(0, W, 0, FULL_H), Position = UDim2.new(0.5, -W / 2, 0.5, -FULL_H / 2),
-BackgroundColor3 = C.bg, BackgroundTransparency = 0.25, ClipsDescendants = true,
+BackgroundColor3 = C.bg, BackgroundTransparency = 0.3, ClipsDescendants = true,
 }, gui)
 corner(main, 16)
 local mainStroke = stroke(main, C.purple, 2)
-gradient(mainStroke, C.purple, C.pink, 45)
+local mainStrokeGrad = gradient(mainStroke, C.purple, C.pink, 45)
+glass(main)
 local header = make("Frame", {Size = UDim2.new(1, 0, 0, HEAD_H), BackgroundTransparency = 1}, main)
 local dot = make("Frame", {
 Size = UDim2.new(0, 14, 0, 14), Position = UDim2.new(0, 14, 0, 18), BackgroundColor3 = Color3.new(1, 1, 1),
@@ -320,6 +328,17 @@ Size = UDim2.new(1, -24, 0, 2), Position = UDim2.new(0, 12, 0, HEAD_H - 2),
 BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0,
 }, main)
 gradient(line, C.purple, C.pink, 0)
+line.ClipsDescendants = true
+local shimmer = make("Frame", {Size = UDim2.new(0, 70, 1, 0), Position = UDim2.new(0, -70, 0, 0), BackgroundColor3 = Color3.new(1,1,1), BorderSizePixel = 0}, line)
+make("UIGradient", {Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0,1), NumberSequenceKeypoint.new(0.5,0.1), NumberSequenceKeypoint.new(1,1)})}, shimmer)
+local ribbonT = 0
+track(RunService.Heartbeat:Connect(function(dt)
+ribbonT = ribbonT + dt
+if not main.Visible then return end
+mainStrokeGrad.Rotation = (ribbonT * 40) % 360
+local w = line.AbsoluteSize.X
+shimmer.Position = UDim2.new(0, -70 + ((ribbonT * 0.5) % 1) * (w + 70), 0, 0)
+end))
 secure("Drag", function()
 local dragging, dragStart, startPos
 track(header.InputBegan:Connect(function(i)
@@ -351,7 +370,8 @@ BackgroundColor3 = C.bg, BackgroundTransparency = 0.15,
 }, gui)
 corner(bubble, 22)
 local bs = stroke(bubble, C.purple, 2)
-gradient(bs, C.purple, C.pink, 45)
+local bsg = gradient(bs, C.purple, C.pink, 45)
+track(RunService.Heartbeat:Connect(function() bsg.Rotation = (os.clock() * 90) % 360 end))
 local pressing, moved, startInput, startPos
 track(bubble.InputBegan:Connect(function(i)
 if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
@@ -425,10 +445,11 @@ end)
 end
 end
 end
+local tabIcons = {EGG = "🥚", NOTIF = "🔔", TPSP = "📍", FITUR = "⚙", PLAYER = "🏃", AVATAR = "👕", MISC = "🧰", ABYSAL = "🌊"}
 for idx, t in ipairs({{"ITEM", "EGG"}, {"NOTIF", "NOTIF"}, {"TP / SP", "TPSP"}, {"FITUR", "FITUR"}, {"PLAYER", "PLAYER"}, {"AVATAR", "AVATAR"}, {"MISC", "MISC"}, {"ABYSAL", "ABYSAL"}}) do
 newPage(t[2])
-local b = button(t[1], 11, tabBar, {
-Size = UDim2.new(0, 68, 1, 0), BackgroundColor3 = Color3.new(1, 1, 1),
+local b = button((tabIcons[t[2]] or "") .. " " .. t[1], 11, tabBar, {
+Size = UDim2.new(0, 82, 1, 0), BackgroundColor3 = Color3.new(1, 1, 1),
 BackgroundTransparency = 1, AutoButtonColor = false, LayoutOrder = idx, TextColor3 = C.muted,
 })
 corner(b, 10)
@@ -443,9 +464,10 @@ local sw = {open = false}
 local win = make("Frame", {
 Name = "SubWin_" .. title, Size = UDim2.new(0, WW, 0, WH),
 Position = UDim2.new(0.5, 150, 0.5, -WH / 2), BackgroundColor3 = C.bg,
-BackgroundTransparency = 0.25, ClipsDescendants = true, Visible = false, Active = true,
+BackgroundTransparency = 0.3, ClipsDescendants = true, Visible = false, Active = true,
 }, gui)
 corner(win, 16)
+glass(win)
 local ws = stroke(win, C.purple, 2)
 gradient(ws, C.purple, C.pink, 45)
 local hdr = make("Frame", {Size = UDim2.new(1, 0, 0, 44), BackgroundTransparency = 1}, win)
@@ -3913,15 +3935,16 @@ end
 end)
 secure("THEME", function()
 local page = pages["FITUR"]
+local presetNames = {"Neon", "Ocean", "Sakura", "Gold-Black", "Blood Red", "Hijau", "Cyan", "Putih"}
 local presets = {
-{C.purple, C.pink},
-{Color3.fromRGB(220, 50, 50), Color3.fromRGB(255, 120, 90)},
-{Color3.fromRGB(37, 99, 235), Color3.fromRGB(56, 189, 248)},
-{Color3.fromRGB(34, 170, 90), Color3.fromRGB(163, 230, 53)},
-{Color3.fromRGB(234, 179, 8), Color3.fromRGB(251, 146, 60)},
-{Color3.fromRGB(6, 182, 212), Color3.fromRGB(129, 140, 248)},
-{Color3.fromRGB(236, 72, 153), Color3.fromRGB(251, 113, 133)},
-{Color3.fromRGB(230, 230, 240), Color3.fromRGB(150, 150, 170)},
+{C.purple, C.pink, Color3.fromRGB(13, 13, 22)},
+{Color3.fromRGB(37, 99, 235), Color3.fromRGB(56, 189, 248), Color3.fromRGB(8, 18, 34)},
+{Color3.fromRGB(244, 114, 182), Color3.fromRGB(253, 186, 216), Color3.fromRGB(32, 14, 26)},
+{Color3.fromRGB(234, 179, 8), Color3.fromRGB(251, 191, 36), Color3.fromRGB(10, 10, 8)},
+{Color3.fromRGB(220, 38, 38), Color3.fromRGB(255, 90, 70), Color3.fromRGB(26, 8, 8)},
+{Color3.fromRGB(34, 170, 90), Color3.fromRGB(163, 230, 53), Color3.fromRGB(10, 22, 14)},
+{Color3.fromRGB(6, 182, 212), Color3.fromRGB(129, 140, 248), Color3.fromRGB(10, 16, 28)},
+{Color3.fromRGB(230, 230, 240), Color3.fromRGB(150, 150, 170), Color3.fromRGB(13, 13, 22)},
 }
 local rainbowOn = false
 local hue = 0
@@ -3950,6 +3973,9 @@ local function applyColors(seq, c1)
 for _, g in ipairs(themeGrads) do if g.Parent then g.Color = seq end end
 for _, st in ipairs(themeStrokes) do if st.Parent then st.Color = c1 end end
 for _, sc in ipairs(themeScrolls) do if sc.Parent then sc.ScrollBarImageColor3 = c1 end end
+end
+local function applyBg(bg)
+for _, f in ipairs(glassFrames) do if f.Parent then TweenService:Create(f, TweenInfo.new(0.3), {BackgroundColor3 = bg}):Play() end end
 end
 local function rainbowSeq(h)
 local pts = {}
@@ -3980,7 +4006,8 @@ PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8),
 }, card)
 make("UIListLayout", {Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder}, card)
 label("WARNA UI", 12, C.text, card, {Size = UDim2.new(1, 0, 0, 18), LayoutOrder = 1})
-label("Pilih warna tema. MIX = warna pelangi bergerak.", 10, C.muted, card, {
+local themeNameLbl
+themeNameLbl = label("Tema: Neon", 10, C.muted, card, {
 Font = Enum.Font.Gotham, Size = UDim2.new(1, 0, 0, 14), LayoutOrder = 2,
 TextTruncate = Enum.TextTruncate.AtEnd,
 })
@@ -4020,6 +4047,8 @@ addSwatch(i, "", ColorSequence.new(pr[1], pr[2]), function()
 rainbowOn = false
 applyColors(ColorSequence.new(pr[1], pr[2]), pr[1])
 applyTextTheme(pr[1], pr[2])
+applyBg(pr[3])
+if themeNameLbl then themeNameLbl.Text = "Tema: " .. (presetNames[i] or "") end
 end)
 end
 local mixIdx = #presets + 1
