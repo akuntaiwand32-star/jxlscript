@@ -199,7 +199,7 @@ b.Parent = parent
 return b
 end
 local Settings = {toggles = {}, nums = {}, extra = {}}
-local noSaveToggle = {["Auto Farm Kristal"] = true, ["Fly"] = true, ["Server Hop (min 1 pemain)"] = true}
+local noSaveToggle = {["Salin Koordinat"] = true, ["Auto Farm Kristal"] = true, ["Fly"] = true, ["Server Hop (min 1 pemain)"] = true}
 local function makeToggle(page, title, desc, order, initial, onChange)
 local card = make("Frame", {
 Size = UDim2.new(1, -6, 0, 46), BackgroundColor3 = C.panel,
@@ -974,7 +974,9 @@ secure("ESP", function()
 local page = pages["FITUR"]
 local espOn = false
 local objs = {}
+local roots = {}
 local function clearOne(p)
+roots[p] = nil
 local o = objs[p]
 if o then
 for _, inst in pairs(o) do pcall(function() inst:Destroy() end) end
@@ -1001,7 +1003,7 @@ o.lbl = label(p.DisplayName, 12, C.text, o.bb, {
 Size = UDim2.new(1, 0, 1, 0), TextXAlignment = Enum.TextXAlignment.Center,
 TextStrokeTransparency = 0.4, TextWrapped = true,
 })
-o.root = ch:FindFirstChild("HumanoidRootPart") or head
+roots[p] = ch:FindFirstChild("HumanoidRootPart") or head
 end
 objs[p] = o
 end
@@ -1026,8 +1028,9 @@ local myRoot = getHRP()
 for p, o in pairs(objs) do
 if o.lbl and o.lbl.Parent then
 local dist = "?"
-if myRoot and o.root and o.root.Parent then
-dist = tostring(math.floor((myRoot.Position - o.root.Position).Magnitude))
+local rt = roots[p]
+if myRoot and rt and rt.Parent then
+dist = tostring(math.floor((myRoot.Position - rt.Position).Magnitude))
 end
 o.lbl.Text = p.DisplayName .. "\n[" .. dist .. " stud]"
 end
@@ -1085,6 +1088,106 @@ if on then pcall(function() fireproximityprompt(p) end) end
 end))
 makeToggle(page, "Ambil Cepat", "Prompt interaksi tanpa ditahan", 6, false, setPP)
 instantCleanup = function() setPP(false) end
+end)
+secure("ANTIVOID", function()
+local page = pages["TPSP"]
+local on = false
+local dropDist = 300
+local safeCF, lastSafeT, lastChk = nil, 0, 0
+makeToggle(page, "Anti Void", "Balik ke posisi aman kalau jatuh ke bawah peta", 21, false, function(v)
+on = v
+if not v then safeCF = nil end
+end)
+makeNumberRow(page, "Batas Jatuh Anti Void (stud)", 300, 22, function(n)
+dropDist = math.clamp(n, 50, 3000)
+end)
+track(player.CharacterAdded:Connect(function() safeCF = nil end))
+track(RunService.Heartbeat:Connect(function()
+if not on then return end
+local now = os.clock()
+if now - lastChk < 0.15 then return end
+lastChk = now
+local hrp, hum = getHRP(), getHum()
+if not hrp or not hum or hum.Health <= 0 then return end
+if hum.FloorMaterial ~= Enum.Material.Air and now - lastSafeT > 0.5 then
+safeCF = hrp.CFrame
+lastSafeT = now
+end
+local y = hrp.Position.Y
+local limitY = workspace.FallenPartsDestroyHeight + 80
+if safeCF and (y < safeCF.Position.Y - dropDist or y < limitY) then
+if activeTween then activeTween:Cancel() activeTween = nil end
+pcall(function()
+hrp.AssemblyLinearVelocity = Vector3.zero
+hrp.AssemblyAngularVelocity = Vector3.zero
+end)
+hrp.CFrame = safeCF + Vector3.new(0, 3, 0)
+lastSafeT = now + 1
+end
+end))
+end)
+secure("COORD", function()
+local page = pages["TPSP"]
+local sw = makeSubWindow("SALIN KOORDINAT", "Salin posisi atau teleport lewat koordinat", 260, 250)
+local _, setVisual = makeToggle(page, "Salin Koordinat", "Buka panel salin / teleport koordinat", 23, false, function(v)
+sw.setOpen(v)
+end)
+local prev = sw.onChange
+sw.onChange = function(v)
+setVisual(v)
+if prev then prev(v) end
+end
+local posLbl = label("Posisi: -", 12, C.muted, sw.content, {
+Size = UDim2.new(1, -2, 0, 22), LayoutOrder = 1, TextXAlignment = Enum.TextXAlignment.Center,
+})
+local copyBtn = button("SALIN POSISI SAYA", 12, sw.content, {
+Size = UDim2.new(1, -2, 0, 32), BackgroundColor3 = C.panel2, LayoutOrder = 2,
+})
+corner(copyBtn, 8)
+local box = inputBox("", sw.content, {
+Size = UDim2.new(1, -2, 0, 34), LayoutOrder = 3, TextSize = 13,
+PlaceholderText = "X, Y, Z", PlaceholderColor3 = C.muted, TextXAlignment = Enum.TextXAlignment.Center,
+})
+local tpBtn = button("TELEPORT KE KOORDINAT", 12, sw.content, {
+Size = UDim2.new(1, -2, 0, 32), BackgroundColor3 = C.panel2, LayoutOrder = 4,
+})
+corner(tpBtn, 8)
+local function flash2(btn, txt, orig)
+btn.Text = txt
+task.delay(1.2, function() if btn.Parent then btn.Text = orig end end)
+end
+local acc = 0
+track(RunService.Heartbeat:Connect(function(dt)
+if not sw.open then return end
+acc = acc + dt
+if acc < 0.3 then return end
+acc = 0
+local hrp = getHRP()
+if hrp then
+local p0 = hrp.Position
+posLbl.Text = string.format("Posisi: %.1f, %.1f, %.1f", p0.X, p0.Y, p0.Z)
+end
+end))
+copyBtn.MouseButton1Click:Connect(function()
+local hrp = getHRP()
+if not hrp then flash2(copyBtn, "X", "SALIN POSISI SAYA") return end
+local p0 = hrp.Position
+local txt = string.format("%.1f, %.1f, %.1f", p0.X, p0.Y, p0.Z)
+box.Text = txt
+local fn = setclipboard or toclipboard or (syn and syn.write_clipboard) or (Clipboard and Clipboard.set)
+local ok = false
+if fn then ok = pcall(fn, txt) end
+flash2(copyBtn, ok and "DISALIN!" or "ADA DI KOLOM (SALIN MANUAL)", "SALIN POSISI SAYA")
+end)
+tpBtn.MouseButton1Click:Connect(function()
+local hrp = getHRP()
+local nums = {}
+for n in box.Text:gmatch("-?%d+%.?%d*") do nums[#nums + 1] = tonumber(n) end
+if not hrp or #nums < 3 then flash2(tpBtn, "FORMAT: X, Y, Z", "TELEPORT KE KOORDINAT") return end
+if activeTween then activeTween:Cancel() activeTween = nil end
+hrp.CFrame = CFrame.new(nums[1], nums[2], nums[3])
+flash2(tpBtn, "OK", "TELEPORT KE KOORDINAT")
+end)
 end)
 secure("TPLIST", function()
 local sw = makeSubWindow("TELEPORT PLAYER", "", 230, 290, 36)
