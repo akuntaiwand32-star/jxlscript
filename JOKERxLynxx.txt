@@ -1824,7 +1824,20 @@ local tb = button("TELEPORT KE ITEM TERAKHIR", 11, page, {
 Size = UDim2.new(1, -2, 0, 30), BackgroundColor3 = C.panel2, LayoutOrder = 8,
 })
 corner(tb, 8)
+local rules, rulesText, minScore = {}, "", 0
+local parseRules
 makeOpenCard(page, "Pilih Tier", "Pilih tier item yang ditampilkan", 10, swTier)
+local ruleCard = make("Frame", {Size = UDim2.new(1, -6, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundColor3 = C.panel, BackgroundTransparency = 0.2, LayoutOrder = 12}, page)
+corner(ruleCard, 10)
+stroke(ruleCard, C.purple, 1, 0.55)
+make("UIPadding", {PaddingTop = UDim.new(0, 6), PaddingBottom = UDim.new(0, 8), PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10)}, ruleCard)
+make("UIListLayout", {Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder}, ruleCard)
+label("Skor Item (prioritas)", 13, C.text, ruleCard, {Size = UDim2.new(1, 0, 0, 18), LayoutOrder = 1})
+label("Tulis: kata skor, pisah koma. Contoh: common 10, mythic 90. Skor tinggi tampil paling atas.", 10, C.muted, ruleCard, {Font = Enum.Font.Gotham, Size = UDim2.new(1, 0, 0, 28), TextWrapped = true, TextYAlignment = Enum.TextYAlignment.Top, LayoutOrder = 2})
+local ruleBox = inputBox("", ruleCard, {Size = UDim2.new(1, 0, 0, 34), PlaceholderText = "common 10, mythic 90", TextSize = 12, ClearTextOnFocus = false, TextXAlignment = Enum.TextXAlignment.Left, LayoutOrder = 3})
+ruleBox.FocusLost:Connect(function() parseRules(ruleBox.Text) end)
+Settings.extra.itemRules = {get = function() return rulesText end, set = function(v) if type(v) == "string" then ruleBox.Text = v parseRules(v) end end, def = ""}
+makeNumberRow(page, "SKOR MINIMUM", 0, 13, function(n) minScore = math.max(0, n) end)
 makeOpenCard(page, "Daftar Item", "Item yang muncul + tombol teleport", 11, swEgg)
 local chips, chipN = {}, 0
 local function makeChip(name)
@@ -2033,7 +2046,8 @@ local p0 = e.part.Position
 g.name.Text = g.nm .. (#live > 1 and ("  x" .. #live) or "") .. (g.r and (" [" .. g.r .. "]") or "")
 g.sub.Text = (e.val and (e.val .. "  ") or "") .. string.format("(%.0f, %.0f, %.0f)", p0.X, p0.Y, p0.Z)
 end
-local function addRow(nm, part, r, val, pp)
+local function addRow(nm, part, r, val, pp, score)
+score = score or 0
 local key = nm .. "|" .. tostring(r)
 local g = groups[key]
 if g then
@@ -2044,7 +2058,7 @@ end
 eggN = eggN + 1
 if eggN > 380 then eggN = 380 end
 local col = tierColor(r)
-local card = make("Frame", {Size = UDim2.new(1, -6, 0, 46), BackgroundColor3 = C.panel, BackgroundTransparency = 0.2, LayoutOrder = 500 - eggN}, swEgg.content)
+local card = make("Frame", {Size = UDim2.new(1, -6, 0, 46), BackgroundColor3 = C.panel, BackgroundTransparency = 0.2, LayoutOrder = 500 - eggN - math.floor(score * 1000)}, swEgg.content)
 corner(card, 10)
 stroke(card, col, 1, 0.45)
 local bar = make("Frame", {Size = UDim2.new(0, 4, 1, -12), Position = UDim2.new(0, 6, 0, 6), BackgroundColor3 = col, BorderSizePixel = 0}, card)
@@ -2129,15 +2143,34 @@ return false
 end
 Settings.isEggPrompt = isEggPrompt
 Settings.toast = toast
+parseRules = function(txt)
+rules = {}
+rulesText = txt or ""
+for chunk in rulesText:gmatch("[^,\n;]+") do
+local w, n = chunk:lower():match("^%s*(.-)%s+(%-?%d+%.?%d*)%s*$")
+if w and w ~= "" and tonumber(n) then table.insert(rules, {w, tonumber(n)}) end
+end
+end
+local function scoreOf(inf)
+local best = 0
+local hay = ((inf.tier or "") .. " " .. (inf.name or "")):lower()
+for _, rl in ipairs(rules) do
+if hay:find(rl[1], 1, true) and rl[2] > best then best = rl[2] end
+end
+return best
+end
 local function process(m, pp)
 local inf = infoOf(m)
 local r, val, num = inf.tier, inf.val, inf.num
-if not passes(r) then return end
+local score = scoreOf(inf)
+if minScore > 0 then
+if score < minScore then return end
+elseif not passes(r) then return end
 local part = m:IsA("Model") and (m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart", true)) or m
 if not (part and part:IsA("BasePart")) then return end
 lastModel, lastPos, lastPP, lastPart = m, part.Position, pp, part
-addRow(inf.name, part, r, val, pp)
-toast(string.format("ITEM %s (%s)%s muncul", inf.name, r or "?", val and (" " .. val) or ""))
+addRow(inf.name, part, r, val, pp, score)
+toast(string.format("ITEM %s (%s)%s%s muncul", inf.name, r or "?", val and (" " .. val) or "", score > 0 and (" [skor " .. score .. "]") or ""))
 end
 local function check(pp)
 if not on or seen[pp] then return end
