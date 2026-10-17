@@ -171,6 +171,10 @@ BackgroundColor3 = C.panel2, AutoButtonColor = true,
 for k, v in pairs(props or {}) do b[k] = v end
 regText(b)
 b.Parent = parent
+local bsc = Instance.new("UIScale") bsc.Parent = b
+b.MouseButton1Down:Connect(function() TweenService:Create(bsc, TweenInfo.new(0.08), {Scale = 0.94}):Play() end)
+b.MouseButton1Up:Connect(function() TweenService:Create(bsc, TweenInfo.new(0.12, Enum.EasingStyle.Back), {Scale = 1}):Play() end)
+b.MouseLeave:Connect(function() bsc.Scale = 1 end)
 if props and props.Size and props.Size.X.Scale == 1 then
 local st = Instance.new("UIStroke")
 st.Color = Color3.fromRGB(124, 77, 255)
@@ -299,6 +303,7 @@ corner(main, 16)
 local mainStroke = stroke(main, C.purple, 2)
 local mainStrokeGrad = gradient(mainStroke, C.purple, C.pink, 45)
 glass(main)
+local mainScale = make("UIScale", {Scale = 1}, main)
 local header = make("Frame", {Size = UDim2.new(1, 0, 0, HEAD_H), BackgroundTransparency = 1}, main)
 local dot = make("Frame", {
 Size = UDim2.new(0, 14, 0, 14), Position = UDim2.new(0, 14, 0, 18), BackgroundColor3 = Color3.new(1, 1, 1),
@@ -314,13 +319,28 @@ gradient(betaPill, C.purple, C.pink, 0)
 label("BETA", 9, Color3.new(1, 1, 1), betaPill, {
 Size = UDim2.new(1, 0, 1, 0), TextXAlignment = Enum.TextXAlignment.Center,
 })
-label("UNIVERSAL V2", 10, C.muted, header, {Size = UDim2.new(0, 80, 0, 14), Position = UDim2.new(0, 36, 0, 28)})
+local statLbl = label("V2 60fps 45ms", 10, C.muted, header, {Size = UDim2.new(0, 84, 0, 14), Position = UDim2.new(0, 36, 0, 28)})
+secure("STATBAR", function()
+local acc, frames = 0, 0
+track(RunService.Heartbeat:Connect(function(dt)
+acc = acc + dt frames = frames + 1
+if acc >= 1 then
+local ping = 0
+pcall(function() ping = math.floor(game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue()) end)
+statLbl.Text = "V2 " .. frames .. "fps " .. ping .. "ms"
+acc, frames = 0, 0
+end
+end))
+end)
 label("tt.annantmng", 10, C.pink, header, {Size = UDim2.new(0, 110, 0, 14), Position = UDim2.new(0, 120, 0, 28)})
 local setBtn = button("*", 16, header, {
 Size = UDim2.new(0, 28, 0, 28), Position = UDim2.new(1, -40, 0, 11), BackgroundColor3 = C.bg,
 })
 corner(setBtn, 14)
 stroke(setBtn, C.purple, 1.5, 0.3)
+local colBtn = button("-", 16, header, {Size = UDim2.new(0, 28, 0, 28), Position = UDim2.new(1, -72, 0, 11), BackgroundColor3 = C.bg})
+corner(colBtn, 14)
+stroke(colBtn, C.purple, 1.5, 0.3)
 local line = make("Frame", {
 Size = UDim2.new(1, -24, 0, 2), Position = UDim2.new(0, 12, 0, HEAD_H - 2),
 BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0,
@@ -379,9 +399,17 @@ if i.UserInputState == Enum.UserInputState.End then
 c:Disconnect()
 pressing = false
 if not moved then
-main.Visible = not main.Visible
+local willShow = not main.Visible
+if not willShow then
+TweenService:Create(mainScale, TweenInfo.new(0.15), {Scale = 0.85}):Play()
+task.delay(0.15, function() if mainScale.Scale <= 0.86 then main.Visible = false end end)
+else
+mainScale.Scale = 0.85
+main.Visible = true
+TweenService:Create(mainScale, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
+end
 playClick(1)
-bubble.BackgroundTransparency = main.Visible and 0.15 or 0.5
+bubble.BackgroundTransparency = willShow and 0.15 or 0.5
 end
 end
 end)
@@ -398,6 +426,18 @@ startPos.Y.Scale, startPos.Y.Offset + d.Y)
 end
 end
 end))
+end)
+local collapsed = false
+colBtn.MouseButton1Click:Connect(function()
+collapsed = not collapsed
+colBtn.Text = collapsed and "+" or "-"
+if collapsed then
+body.Visible = false
+TweenService:Create(main, TweenInfo.new(0.25, Enum.EasingStyle.Quad), {Size = UDim2.new(0, W, 0, HEAD_H)}):Play()
+else
+TweenService:Create(main, TweenInfo.new(0.25, Enum.EasingStyle.Quad), {Size = UDim2.new(0, W, 0, FULL_H)}):Play()
+task.delay(0.2, function() body.Visible = true end)
+end
 end)
 local tabBar = make("ScrollingFrame", {
 Size = UDim2.new(1, -16, 0, 30), Position = UDim2.new(0, 8, 0, 6), BackgroundColor3 = C.panel,
@@ -426,7 +466,14 @@ table.insert(themeScrolls, p)
 return p
 end
 local function selectTab(key)
-for k, p in pairs(pages) do p.Visible = (k == key) end
+for k, p in pairs(pages) do
+local show = (k == key)
+if show and not p.Visible then
+p.Position = UDim2.new(0, 0, 0, 14)
+TweenService:Create(p, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = UDim2.new(0, 0, 0, 0)}):Play()
+end
+p.Visible = show
+end
 for k, b in pairs(tabBtns) do
 local active = (k == key)
 b.BackgroundTransparency = active and 0 or 1
