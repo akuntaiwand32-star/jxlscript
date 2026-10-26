@@ -1,10 +1,3 @@
--- Hanya berjalan di game: [🎃] Fake an Egg
-local ALLOWED = { 97289366402005 }
-if not table.find(ALLOWED, game.PlaceId) then
-    warn("[NIMEROHUB] Script ini bukan untuk game ini")
-    return
-end
-
 --[[
     NIMEROHUB (versi ringan)
     - Bubble "NB" cair (memercik lalu menyatu) untuk buka/tutup menu (bisa digeser)
@@ -590,10 +583,8 @@ local espPage = makePage("ESP")
 local basePage = makePage("Base")
 local eggPage = makePage("Telur")
 local serverPage = makePage("Server")
-makeTab("ESP", 1, "👁  ESP")
-makeTab("Base", 2, "🏠  Base")
-makeTab("Telur", 3, "🥚  Telur")
-makeTab("Server", 4, "🌐  Server")
+makeTab("Telur", 1, "🥚  Telur")
+makeTab("Server", 2, "🌐  Server")
 
 ----------------------------------------------------------------
 -- Bubble "NB" (cair: memercik lalu menyatu)
@@ -773,7 +764,7 @@ bubble.MouseButton1Click:Connect(function()
 end)
 minBtn.MouseButton1Click:Connect(function() setOpen(false) end)
 
-selectTab("ESP")
+selectTab("Telur")
 
 task.wait()
 
@@ -791,8 +782,9 @@ for _, n in ipairs({
     "LeftUpperLeg", "LeftLowerLeg", "LeftFoot", "RightUpperLeg", "RightLowerLeg", "RightFoot",
 }) do BODY[n] = true end
 
-local espEnabled = false
+local espEnabled = true
 local tracked = {} -- [player] = { bb, label, char }
+local flaggedPlr = {} -- [player] = { untilT, why } : pemain yang ditandai PALSU oleh Radar
 
 local function hasWord(str, words)
     str = string.lower(tostring(str))
@@ -844,6 +836,7 @@ local function detectDisguise(plr)
 end
 
 local function release(plr)
+    flaggedPlr[plr] = nil
     local e = tracked[plr]
     if e then
         e.bb:Destroy()
@@ -874,7 +867,8 @@ local function attach(plr, text)
     bb.Name = ESP_TAG
     bb.Adornee = part
     bb.AlwaysOnTop = true
-    bb.Size = UDim2.new(0, 150, 0, 16)
+    pcall(function() bb.MaxDistance = math.huge end) -- terlihat dari seluruh map
+    bb.Size = UDim2.new(0, 190, 0, 16)
     bb.StudsOffset = Vector3.new(0, 3, 0)
     bb.Parent = parent
 
@@ -901,25 +895,47 @@ Players.PlayerRemoving:Connect(release)
 task.spawn(function()
     while gui.Parent do
         if espEnabled then
+            local now = os.clock()
+            local me = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+            -- label radar: nama + jarak (radar mencakup SELURUH pemain di map, tanpa batas jarak)
+            local function radarText(plr)
+                local r = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+                if me and r then
+                    return "⚠ PALSU • " .. plr.Name .. " • "
+                        .. math.floor((r.Position - me.Position).Magnitude) .. " stud"
+                end
+                return "⚠ PALSU • " .. plr.Name
+            end
             for _, plr in ipairs(Players:GetPlayers()) do
                 if plr ~= LP then
-                    if detectDisguise(plr) then
-                        attach(plr, "⚠ PALSU • " .. plr.Name)
+                    local fake, why = detectDisguise(plr)
+                    if fake then
+                        flaggedPlr[plr] = { untilT = now + 8, why = why }
+                        attach(plr, radarText(plr))
                     else
-                        release(plr)
+                        local f = flaggedPlr[plr]
+                        if f and f.untilT > now then
+                            attach(plr, radarText(plr)) -- penyamaran bisa berkedip: tetap ditandai beberapa detik
+                        else
+                            flaggedPlr[plr] = nil
+                            release(plr)
+                        end
                     end
                 end
             end
         end
-        task.wait(1)
+        task.wait(0.25)
     end
     clearAll()
 end)
 
 addSection(espPage, "◆ PENDETEKSI", -1)
-addToggle(espPage, "Radar Telur Palsu", "Tandai pemain yang menyamar jadi telur", function(on)
+addToggle(espPage, "Radar Telur Palsu", "Tandai pemain yang menyamar jadi telur • WAJIB aktif agar bisa teleport ke telur", function(on)
     espEnabled = on
-    if not on then clearAll() end
+    if not on then
+        clearAll()
+        for k in pairs(flaggedPlr) do flaggedPlr[k] = nil end
+    end
 end)
 
 task.wait()
@@ -953,10 +969,14 @@ local function returnToBase(reason)
     lastReturn = os.clock()
     print("[NB] teleport ke base | alasan:", reason)
     task.wait(0.1)
-    local root = getRoot()
-    if root then
-        root.AssemblyLinearVelocity = Vector3.zero
-        root.CFrame = savedCF + Vector3.new(0, 3, 0)
+    -- diulang 3x: sebagian game menggeser posisi balik sesaat setelah teleport pertama
+    for i = 1, 3 do
+        local root = getRoot()
+        if root then
+            root.AssemblyLinearVelocity = Vector3.zero
+            root.CFrame = savedCF + Vector3.new(0, 3, 0)
+        end
+        if i < 3 then task.wait(0.15) end
     end
 end
 
@@ -965,10 +985,13 @@ local ppOriginal = setmetatable({}, { __mode = "k" })
 local ppConn
 
 local function makeInstant(inst)
-    if inst:IsA("ProximityPrompt") then
-        if ppOriginal[inst] == nil then ppOriginal[inst] = inst.HoldDuration end
-        inst.HoldDuration = 0
+    if not inst:IsA("ProximityPrompt") then return end
+    local t = (tostring(inst.ActionText or "") .. " " .. tostring(inst.ObjectText or "")):lower()
+    for _, w in ipairs({"suka","like","kostum","robux","gamepass","markas","curi","upgrade"}) do
+        if string.find(t, w, 1, true) then return end
     end
+    if ppOriginal[inst] == nil then ppOriginal[inst] = inst.HoldDuration end
+    inst.HoldDuration = 0
 end
 
 local function enableInstant()
@@ -999,6 +1022,9 @@ end
 ----------------------------------------------------------------
 local function newSet() return setmetatable({}, { __mode = "k" }) end
 local wsLabels, wsModels, pgText = newSet(), newSet(), newSet()
+local wsRar = newSet() -- TextLabel workspace yang teksnya memuat nama rarity (dipantau lewat event)
+local eggDirty = false -- ada label rarity baru/berubah -> scan secepatnya
+local rarCheck         -- diisi setelah findRarity tersedia
 
 local function trackRoot(root, onAdd, onRemove)
     if not root then return end
@@ -1023,6 +1049,7 @@ trackRoot(workspace, function(d, initial)
     local cn = d.ClassName
     if cn == "TextLabel" then
         wsLabels[d] = true
+        if rarCheck then pcall(rarCheck, d) end
     elseif cn == "Model" then
         if modelHasRarity(d) then
             wsModels[d] = true
@@ -1034,6 +1061,7 @@ trackRoot(workspace, function(d, initial)
     end
 end, function(d)
     wsLabels[d] = nil
+    wsRar[d] = nil
     wsModels[d] = nil
 end)
 
@@ -1058,21 +1086,38 @@ end
 
 local function isDropText(txt)
     txt = string.lower(txt or "")
+    if #txt > 30 then return false end
     return string.find(txt, "jatuhkan", 1, true) ~= nil
+        or string.find(txt, "letakkan", 1, true) ~= nil
+        or string.find(txt, "lepaskan", 1, true) ~= nil
         or string.match(txt, "^%s*drop%s*$") ~= nil
+        or (string.match(txt, "^%s*drop%f[%W]") ~= nil and hasWord(txt, EGG_WORDS))
 end
+
+local dropSet = newSet() -- tombol "Jatuhkan"/"Drop" di layar (dipantau lewat event)
+trackRoot(pgRoot, function(d)
+    local cn = d.ClassName
+    if cn == "TextLabel" or cn == "TextButton" then
+        if isDropText(d.Text) then dropSet[d] = true end
+        d:GetPropertyChangedSignal("Text"):Connect(function()
+            dropSet[d] = isDropText(d.Text) or nil
+        end)
+    end
+end, function(d)
+    dropSet[d] = nil
+end)
 
 local function carryingEgg()
     local char = LP.Character
     if char then
         for _, c in ipairs(char:GetChildren()) do
-            if (c:IsA("Model") or c:IsA("BasePart")) and hasWord(c.Name, EGG_WORDS) then
+            if (c:IsA("Model") or c:IsA("BasePart") or c:IsA("Tool")) and hasWord(c.Name, EGG_WORDS) then
                 return true, "objek di karakter: " .. c.Name
             end
         end
     end
     if pgRoot then
-        for o in pairs(pgText) do
+        for o in pairs(dropSet) do
             if o.Parent and isDropText(o.Text) and o.AbsoluteSize.X > 0 and guiShown(o, pgRoot) then
                 return true, "tombol: " .. o.Text
             end
@@ -1084,32 +1129,35 @@ end
 task.spawn(function()
     local lastState
     while gui.Parent do
-        if autoBase and savedCF and os.clock() >= autoSuspendUntil then
-            local root = getRoot()
-            if root then
-                local far = (root.Position - savedCF.Position).Magnitude > 25
-                local state
-                if not far then
-                    state = "di base"
-                else
-                    local carrying, why = carryingEgg()
-                    if carrying then
-                        state = "membawa telur"
-                        returnToBase(why)
+        local okLoop, errLoop = pcall(function()
+            if autoBase and savedCF and os.clock() >= autoSuspendUntil then
+                local root = getRoot()
+                if root then
+                    local far = (root.Position - savedCF.Position).Magnitude > 25
+                    local state
+                    if not far then
+                        state = "di base"
                     else
-                        state = "menunggu telur"
+                        local carrying, why = carryingEgg()
+                        if carrying then
+                            state = "membawa telur"
+                            returnToBase(why)
+                        else
+                            state = "menunggu telur"
+                        end
+                    end
+                    if state ~= lastState then
+                        lastState = state
+                        setStatus("Status: " .. state,
+                            state == "membawa telur" and C.warn or C.good)
                     end
                 end
-                if state ~= lastState then
-                    lastState = state
-                    setStatus("Status: " .. state,
-                        state == "membawa telur" and C.warn or C.good)
-                end
+            else
+                lastState = nil
             end
-        else
-            lastState = nil
-        end
-        task.wait(1)
+        end)
+        if not okLoop then warn("[NB] auto base error:", errLoop) end
+        task.wait(0.25)
     end
 end)
 
@@ -1156,33 +1204,61 @@ task.wait()
 -- Telur pemain yang menyamar TIDAK dimasukkan
 ----------------------------------------------------------------
 local RARITY = {
-    { name = "Hacker",    keys = { "hacker" },                                           color = Color3.fromRGB(60, 255, 90),  rank = 7 },
-    { name = "Admin",     keys = { "admin" },                                            color = Color3.fromRGB(255, 60, 60),  rank = 6 },
-    { name = "Rahasia",   keys = { "rahasia", "secret" },                                color = Color3.fromRGB(90, 225, 255), rank = 5 },
-    { name = "Ilahi",     keys = { "ilahi", "divine" },                                  color = Color3.fromRGB(255, 215, 90), rank = 4 },
-    { name = "Eksotis",   keys = { "eksotis", "exotic" },                                color = Color3.fromRGB(255, 85, 225), rank = 3 },
-    { name = "Mythic",    keys = { "mythic", "mythical", "mitik", "mitos", "mistik", "mistis" }, color = Color3.fromRGB(255, 140, 50), rank = 2 },
-    { name = "Legendary", keys = { "legendary", "legendaris" },                          color = Color3.fromRGB(255, 70, 80),  rank = 1 },
+    { name = "Hacker",    keys = { "hacker" },                                           color = Color3.fromRGB(60, 255, 90),   rank = 11 },
+    { name = "Admin",     keys = { "admin" },                                            color = Color3.fromRGB(255, 60, 60),   rank = 10 },
+    { name = "Rahasia",   keys = { "rahasia", "secret" },                                color = Color3.fromRGB(90, 225, 255),  rank = 9 },
+    { name = "Ilahi",     keys = { "ilahi", "divine" },                                  color = Color3.fromRGB(255, 215, 90),  rank = 8 },
+    { name = "Eksotis",   keys = { "eksotis", "exotic" },                                color = Color3.fromRGB(255, 85, 225),  rank = 7 },
+    { name = "Mythic",    keys = { "mythic", "mythical", "mitik", "mitos", "mistik", "mistis" }, color = Color3.fromRGB(255, 140, 50), rank = 6 },
+    { name = "Legendary", keys = { "legendary", "legendaris" },                          color = Color3.fromRGB(255, 70, 80),   rank = 5 },
+    -- rarity bawah: dicocokkan sebagai KATA utuh supaya tidak salah baca (mis. "uncommon" bukan "common")
+    { name = "Epic",      keys = { "epic", "epik" },                                     color = Color3.fromRGB(170, 100, 255), rank = 4, exact = true },
+    { name = "Rare",      keys = { "rare" },                                             color = Color3.fromRGB(80, 160, 255),  rank = 3, exact = true },
+    { name = "Uncommon",  keys = { "uncommon", "tidak umum" },                           color = Color3.fromRGB(110, 225, 120), rank = 2, exact = true },
+    { name = "Common",    keys = { "common", "umum" },                                   color = Color3.fromRGB(190, 195, 205), rank = 1, exact = true },
 }
 
 local function findRarity(text)
     local t = string.lower(text)
     for _, r in ipairs(RARITY) do
         for _, k in ipairs(r.keys) do
-            if string.find(t, k, 1, true) then return r end
+            if r.exact then
+                if string.find(t, "%f[%a]" .. k .. "%f[%A]") then return r end
+            elseif string.find(t, k, 1, true) then
+                return r
+            end
         end
     end
 end
+
+-- Rarity yang dipilih di menu "Pilih Rarity" (dipakai Auto Ambil Terbaik). Awal: Legendary ke atas
+local selRar = {}
+for _, r in ipairs(RARITY) do selRar[r.name] = r.rank >= 5 end
+
+rarCheck = function(d)
+    if findRarity(d.Text) then
+        wsRar[d] = true
+        eggDirty = true
+    end
+    d:GetPropertyChangedSignal("Text"):Connect(function()
+        local has = findRarity(d.Text) and true or nil
+        wsRar[d] = has
+        if has then eggDirty = true end
+    end)
+end
+local openRarPanel -- diisi oleh panel pilih rarity
 
 local eggRows = {} -- [instance] = { row, title, desc, bar }
 local allEggResults = {} -- hasil scan penuh (tanpa filter rarity tertinggi, fake sudah dikecualikan)
 local failedUntil = {}   -- [instance] = waktu sampai telur gagal diambil dilewati Auto Ambil
 local eggRefreshing = false
 local emptyLabel = newLabel({
-    Size = UDim2.new(1, -4, 0, 18),
+    Size = UDim2.new(1, -4, 0, 30),
     Text = "🔎 Mencari telur langka…",
     TextColor3 = C.muted,
     TextSize = 11,
+    TextWrapped = true,
+    TextYAlignment = Enum.TextYAlignment.Top,
 })
 emptyLabel.LayoutOrder = -999
 emptyLabel.Parent = eggPage
@@ -1207,11 +1283,11 @@ end
 local tBase = addToggle(eggPage, "Antar ke Base", "Setelah ambil, teleport ke posisi base tersimpan", function(on)
     optBase = on
 end, true)
-tBase.row.LayoutOrder = -497
+tBase.row.LayoutOrder = -496
 local tBack = addToggle(eggPage, "Kembali ke Posisi Awal", "Pulang ke tempat semula setelah selesai", function(on)
     optBack = on
 end, true)
-tBack.row.LayoutOrder = -496
+tBack.row.LayoutOrder = -495
 
 -- Mode auto selalu butuh koordinat base: kalau belum disimpan, posisi sekarang dipakai
 local function ensureBase()
@@ -1229,12 +1305,244 @@ local function ensureBase()
 end
 
 local autoBest = false
+local camFreeze = true -- Mode Diam: kamera tetap saat ambil telur
 local autoRebirth = false
-local tAuto = addToggle(eggPage, "Auto Ambil Terbaik", "Eksotis ke atas • palsu diabaikan • otomatis ke base", function(on)
+local tAuto = addToggle(eggPage, "Auto Ambil Terbaik", "Beli otomatis telur terbaik sesuai rarity • kembali ke posisi semula", function(on)
+    if on then
+        espEnabled = true
+        local any = false
+        for _, v in pairs(selRar) do
+            if v then any = true break end
+        end
+        if not any then
+            setAct("Pilih minimal satu rarity dulu", C.warn)
+            if openRarPanel then openRarPanel(true) end
+            return false
+        end
+    end
     autoBest = on
-    if on then ensureBase() end
 end)
 tAuto.row.LayoutOrder = -498
+
+addToggle(eggPage, "Mode Diam", "Kamera tetap saat ambil telur • seolah tidak berpindah dari base", function(on)
+    camFreeze = on
+end, true).row.LayoutOrder = -494
+
+-- Menu pilih rarity: panel daftar di SEBELAH KANAN menu (otomatis pindah ke kiri kalau tidak muat)
+do
+    local PW = 176
+    local list = {}
+    for _, r in ipairs(RARITY) do list[#list + 1] = r end
+    table.sort(list, function(a, b) return a.rank < b.rank end) -- Common -> ... -> Admin -> Hacker
+
+    local function summary()
+        local names, n = {}, 0
+        for _, r in ipairs(list) do
+            if selRar[r.name] then
+                n += 1
+                names[#names + 1] = r.name
+            end
+        end
+        if n == 0 then return "Belum ada yang dipilih" end
+        if n == #list then return "Semua rarity" end
+        if n <= 3 then return table.concat(names, ", ") end
+        return names[1] .. ", " .. names[2] .. " +" .. (n - 2) .. " lainnya"
+    end
+
+    local rarBtn = addButton(eggPage, "Pilih Rarity", summary(), function()
+        if openRarPanel then openRarPanel(nil) end
+    end)
+    rarBtn.row.LayoutOrder = -497
+
+    local panel = Instance.new("Frame")
+    panel.Name = "RarityPanel"
+    panel.Size = UDim2.new(0, PW, 1, 0)
+    panel.Position = UDim2.new(1, 8, 0, 0)
+    panel.BackgroundColor3 = C.bg
+    panel.BorderSizePixel = 0
+    panel.Visible = false
+    panel.ZIndex = 5
+    panel.Parent = main
+    corner(panel, 14)
+    local pStroke = Instance.new("UIStroke")
+    pStroke.Color = Color3.new(1, 1, 1)
+    pStroke.Thickness = 1.5
+    pStroke.Transparency = 0.15
+    pStroke.Parent = panel
+    local pGrad = Instance.new("UIGradient")
+    pGrad.Color = ColorSequence.new(C.accent, C.pink)
+    pGrad.Rotation = 35
+    pGrad.Parent = pStroke
+
+    local title = newLabel({
+        Position = UDim2.new(0, 12, 0, 8), Size = UDim2.new(1, -60, 0, 18),
+        Text = "Pilih Rarity", Font = Enum.Font.GothamBold, TextSize = 14, ZIndex = 6,
+    })
+    title.Parent = panel
+    local counter = newLabel({
+        Position = UDim2.new(0, 12, 0, 26), Size = UDim2.new(1, -24, 0, 14),
+        Text = "", TextColor3 = C.muted, TextSize = 11, ZIndex = 6,
+    })
+    counter.Parent = panel
+
+    local closeB = Instance.new("TextButton")
+    closeB.AnchorPoint = Vector2.new(1, 0)
+    closeB.Position = UDim2.new(1, -8, 0, 8)
+    closeB.Size = UDim2.new(0, 24, 0, 24)
+    closeB.BackgroundColor3 = C.row
+    closeB.Text = "✕"
+    closeB.TextColor3 = C.muted
+    closeB.Font = Enum.Font.GothamBold
+    closeB.TextSize = 12
+    closeB.AutoButtonColor = false
+    closeB.ZIndex = 6
+    closeB.Parent = panel
+    corner(closeB, 8)
+
+    local function smallBtn(text, x, w)
+        local b = Instance.new("TextButton")
+        b.Position = UDim2.new(0, x, 0, 44)
+        b.Size = UDim2.new(0, w, 0, 24)
+        b.BackgroundColor3 = C.row
+        b.Text = text
+        b.TextColor3 = C.text
+        b.Font = Enum.Font.GothamMedium
+        b.TextSize = 11
+        b.AutoButtonColor = false
+        b.ZIndex = 6
+        b.Parent = panel
+        corner(b, 8)
+        return b
+    end
+    local half = (PW - 24 - 6) / 2
+    local allB = smallBtn("Pilih Semua", 12, half)
+    local noneB = smallBtn("Hapus", 12 + half + 6, half)
+
+    local sf = Instance.new("ScrollingFrame")
+    sf.Position = UDim2.new(0, 8, 0, 76)
+    sf.Size = UDim2.new(1, -16, 1, -84)
+    sf.BackgroundTransparency = 1
+    sf.BorderSizePixel = 0
+    sf.ScrollBarThickness = 3
+    sf.ScrollBarImageColor3 = C.accent
+    sf.CanvasSize = UDim2.new(0, 0, 0, 0)
+    sf.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    sf.ZIndex = 6
+    sf.Parent = panel
+    local ll = Instance.new("UIListLayout")
+    ll.Padding = UDim.new(0, 5)
+    ll.SortOrder = Enum.SortOrder.LayoutOrder
+    ll.Parent = sf
+    local lp = Instance.new("UIPadding")
+    lp.PaddingRight = UDim.new(0, 4)
+    lp.PaddingBottom = UDim.new(0, 4)
+    lp.Parent = sf
+
+    local rows = {}
+    local function refresh()
+        local n = 0
+        for _, r in ipairs(list) do
+            local e = rows[r.name]
+            local on = selRar[r.name] and true or false
+            if on then n += 1 end
+            e.btn.BackgroundColor3 = on and C.rowHov or C.row
+            e.stroke.Transparency = on and 0.25 or 1
+            e.check.Visible = on
+            e.name.TextColor3 = on and r.color or C.muted
+        end
+        counter.Text = n .. " dari " .. #list .. " dipilih"
+        rarBtn.desc.Text = summary()
+    end
+
+    for idx, r in ipairs(list) do
+        local b = Instance.new("TextButton")
+        b.LayoutOrder = idx
+        b.Size = UDim2.new(1, 0, 0, 32)
+        b.BackgroundColor3 = C.row
+        b.Text = ""
+        b.AutoButtonColor = false
+        b.ZIndex = 6
+        b.Parent = sf
+        corner(b, 9)
+        local st = Instance.new("UIStroke")
+        st.Color = r.color
+        st.Thickness = 1.2
+        st.Transparency = 1
+        st.Parent = b
+        local bar = Instance.new("Frame")
+        bar.Position = UDim2.new(0, 6, 0.5, -9)
+        bar.Size = UDim2.new(0, 4, 0, 18)
+        bar.BackgroundColor3 = r.color
+        bar.BorderSizePixel = 0
+        bar.ZIndex = 7
+        bar.Parent = b
+        corner(bar, 2)
+        local nm = newLabel({
+            Position = UDim2.new(0, 18, 0, 0), Size = UDim2.new(1, -46, 1, 0),
+            Text = r.name, Font = Enum.Font.GothamMedium, TextSize = 13, ZIndex = 7,
+        })
+        nm.Parent = b
+        local ck = newLabel({
+            AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -10, 0.5, 0),
+            Size = UDim2.new(0, 18, 0, 18), Text = "✓", TextColor3 = r.color,
+            Font = Enum.Font.GothamBold, TextSize = 15, ZIndex = 7,
+            TextXAlignment = Enum.TextXAlignment.Center,
+        })
+        ck.Parent = b
+        rows[r.name] = { btn = b, stroke = st, check = ck, name = nm }
+        b.MouseButton1Click:Connect(function()
+            selRar[r.name] = not selRar[r.name]
+            refresh()
+        end)
+    end
+    allB.MouseButton1Click:Connect(function()
+        for _, r in ipairs(list) do selRar[r.name] = true end
+        refresh()
+    end)
+    noneB.MouseButton1Click:Connect(function()
+        for _, r in ipairs(list) do selRar[r.name] = false end
+        refresh()
+    end)
+    refresh()
+
+    -- posisi: kanan menu kalau muat, kalau tidak kiri, kalau tidak juga menimpa sisi kanan menu
+    local function place()
+        local vw = gui.AbsoluteSize.X
+        local sc = mainScale.Scale
+        local left = main.AbsolutePosition.X
+        local mw = main.AbsoluteSize.X
+        local pw = (PW + 8) * sc
+        if left + mw + pw <= vw then
+            panel.Size = UDim2.new(0, PW, 1, 0)
+            panel.Position = UDim2.new(1, 8, 0, 0)
+        elseif left - pw >= 0 then
+            panel.Size = UDim2.new(0, PW, 1, 0)
+            panel.Position = UDim2.new(0, -(PW + 8), 0, 0)
+        else
+            panel.Size = UDim2.new(0, PW, 1, -12)
+            panel.Position = UDim2.new(1, -(PW + 6), 0, 6)
+        end
+    end
+
+    local wantOpen = false
+    local function sync()
+        panel.Visible = wantOpen and eggPage.Visible
+        if panel.Visible then place() end
+    end
+    openRarPanel = function(v)
+        if v == nil then v = not wantOpen end
+        wantOpen = v
+        sync()
+    end
+    closeB.MouseButton1Click:Connect(function() openRarPanel(false) end)
+    eggPage:GetPropertyChangedSignal("Visible"):Connect(sync)
+    main:GetPropertyChangedSignal("AbsolutePosition"):Connect(function()
+        if panel.Visible then place() end
+    end)
+    main:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+        if panel.Visible then place() end
+    end)
+end
 
 local function eggPosition(inst)
     if inst:IsA("Model") then
@@ -1277,7 +1585,101 @@ local function nearAnyPlayer(pos, radius)
     end
 end
 
--- Pemeriksaan telur palsu / pemain menyamar. Return: true, alasan
+-- Pelacak gerak & hasil cek keterkaitan pemain per telur
+local eggMove = newSet() -- [egg] = { linkAt, linkRes, softSince, waiting }
+
+-- Telur terkait pemain LAIN? (nama induk, atribut, ObjectValue, weld ke badan pemain, dsb.)
+local function linkedToOtherPlayer(egg)
+    local others = {}
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LP then others[#others + 1] = plr end
+    end
+    if #others == 0 then return false end
+
+    local function inOther(inst)
+        if not inst then return nil end
+        for _, plr in ipairs(others) do
+            local ch = plr.Character
+            if ch and (inst == ch or inst:IsDescendantOf(ch)) then return plr end
+        end
+    end
+    local function isPlrVal(v)
+        if type(v) == "string" then
+            local lv = string.lower(v)
+            for _, plr in ipairs(others) do
+                if lv == string.lower(plr.Name) or lv == string.lower(plr.DisplayName)
+                    or v == tostring(plr.UserId) then
+                    return plr
+                end
+            end
+        elseif type(v) == "number" then
+            for _, plr in ipairs(others) do
+                if v == plr.UserId then return plr end
+            end
+        end
+    end
+
+    -- 1) nama telur/induknya atau atributnya menyebut pemain lain
+    local p, g = egg, 0
+    while p and p ~= workspace and g < 6 do
+        local plr = isPlrVal(p.Name)
+        if plr then return true, "bernama pemain " .. plr.Name end
+        for k, v in pairs(p:GetAttributes()) do
+            local hit = isPlrVal(v)
+            if hit then return true, "atribut " .. k .. " = " .. hit.Name end
+        end
+        p = p.Parent
+        g += 1
+    end
+
+    -- 2) isi telur: referensi pemain, atau weld ke badan pemain lain
+    local n = 0
+    for _, d in ipairs(egg:GetDescendants()) do
+        n += 1
+        if n > 120 then break end
+        if d:IsA("ObjectValue") then
+            local v = d.Value
+            if v and ((v:IsA("Player") and v ~= LP) or inOther(v)) then
+                return true, "referensi pemain (" .. d.Name .. ")"
+            end
+        elseif d:IsA("StringValue") then
+            local hit = isPlrVal(d.Value)
+            if hit then return true, "value " .. d.Name .. " = " .. hit.Name end
+        elseif d:IsA("JointInstance") or d:IsA("WeldConstraint") then
+            if inOther(d.Part0) or inOther(d.Part1) then
+                return true, "menempel (weld) ke pemain"
+            end
+        elseif d:IsA("RigidConstraint") then
+            local a0, a1 = d.Attachment0, d.Attachment1
+            if (a0 and inOther(a0.Parent)) or (a1 and inOther(a1.Parent)) then
+                return true, "menempel ke pemain"
+            end
+        end
+    end
+
+    -- 3) weld dari badan pemain lain menuju telur (arah sebaliknya)
+    for _, plr in ipairs(others) do
+        local ch = plr.Character
+        if ch then
+            local m = 0
+            for _, d in ipairs(ch:GetDescendants()) do
+                m += 1
+                if m > 200 then break end
+                if d:IsA("JointInstance") or d:IsA("WeldConstraint") then
+                    local a, b = d.Part0, d.Part1
+                    if (a and (a == egg or a:IsDescendantOf(egg)))
+                        or (b and (b == egg or b:IsDescendantOf(egg))) then
+                        return true, "menempel ke " .. plr.Name
+                    end
+                end
+            end
+        end
+    end
+    return false
+end
+
+-- Pemeriksaan telur palsu / pemain menyamar. Return: true, alasan, soft
+-- Mengikuti RADAR TELUR PALSU (tab ESP): telur di dekat pemain yang ditandai PALSU = palsu.
 -- structuralOnly = true: cek struktur saja (dipakai saat sedang mengambil, agar
 -- pemain asli yang ikut berebut telur tidak membatalkan pengambilan)
 local function isFakeEgg(egg, structuralOnly)
@@ -1293,19 +1695,40 @@ local function isFakeEgg(egg, structuralOnly)
             return true, "atribut " .. k
         end
     end
+
+    -- terkait pemain lain (nama, atribut, weld) -- di-cache 0.5 detik
+    local now = os.clock()
+    local e = eggMove[egg]
+    if not e then
+        e = { linkAt = -100, linkRes = false }
+        eggMove[egg] = e
+    end
+    if now - e.linkAt > 0.5 then
+        e.linkAt = now
+        local lk, lwhy = linkedToOtherPlayer(egg)
+        e.linkRes = lk and (lwhy or "terkait pemain") or false
+    end
+    if e.linkRes then return true, e.linkRes end
     if structuralOnly then return false end
 
     local pos = eggPosition(egg)
     if pos then
+        -- RADAR: telur di dekat pemain yang sedang ditandai "⚠ PALSU" = telur palsu
+        for plr, f in pairs(flaggedPlr) do
+            if f.untilT > now and plr.Parent then
+                local ch = plr.Character
+                local r = ch and ch:FindFirstChild("HumanoidRootPart")
+                if r and (r.Position - pos).Magnitude < 35 then
+                    return true, "dekat pemain palsu " .. plr.Name .. " (radar)"
+                end
+            end
+        end
+        -- ada pemain menempel tepat di telur
         for _, plr in ipairs(Players:GetPlayers()) do
             if plr ~= LP then
                 local r = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
-                if r then
-                    local d = (r.Position - pos).Magnitude
-                    if d < 6 then return true, "menempel di " .. plr.Name end
-                    if d < 16 and detectDisguise(plr) then
-                        return true, "dekat pemain menyamar " .. plr.Name
-                    end
+                if r and (r.Position - pos).Magnitude < 6 then
+                    return true, "menempel di " .. plr.Name
                 end
             end
         end
@@ -1407,6 +1830,136 @@ local function isPenEgg(egg, bb)
     return false
 end
 
+-- Cari ProximityPrompt untuk AMBIL telur (di telur, di induknya, atau di sekitarnya).
+-- Prompt "Lewati"/"Skip"/"Beli" dsb. TIDAK pernah dipilih / ditekan (itu memunculkan pembelian Robux).
+local nearestPrompt, promptOk
+do
+    local SKIP = { "lewati", "skip", "robux", "gamepass", "premium", "pass",
+        "upgrade", "tingkatkan", "curi", "steal", "colong", "rampas",
+        "suka", "like", "menyukai", "kostum", "costume", "gunakan", "equip",
+        "markas", "toko", "shop", "jual", "sell" }
+    local PICK = { "ambil", "pick", "grab", "take", "collect", "angkat", "bawa", "carry",
+        "beli", "buy", "purchase", "claim", "klaim", "get", "hold" }
+
+    -- nil = jangan ditekan, 2 = jelas prompt ambil, 1 = tidak jelas (boleh)
+    promptOk = function(pp)
+        local txt = table.concat({
+            pp.ActionText, pp.ObjectText, pp.Name,
+            pp.Parent and pp.Parent.Name or "",
+        }, " ")
+        if hasWord(txt, SKIP) then return nil end
+        if hasWord(txt, PICK) then return 2 end
+        return 1
+    end
+
+    local function partOf(pp)
+        local o = pp.Parent
+        if o and o:IsA("Attachment") then o = o.Parent end
+        if o and o:IsA("BasePart") then return o end
+        return pp:FindFirstAncestorWhichIsA("BasePart")
+    end
+
+    nearestPrompt = function(egg, pos)
+        local best, bestSc, bestD
+        local function check(pp, part)
+            if pp:IsA("ProximityPrompt") and pp.Enabled
+                and not isPlayerPart(pp) and not humanoidAncestor(pp) then
+                local sc = promptOk(pp)
+                if sc then
+                    local dist = part and (part.Position - pos).Magnitude or 0
+                    if not best or sc > bestSc or (sc == bestSc and dist < bestD) then
+                        best, bestSc, bestD = pp, sc, dist
+                    end
+                end
+            end
+        end
+        for _, d in ipairs(egg:GetDescendants()) do
+            if d:IsA("ProximityPrompt") then check(d, partOf(d)) end
+        end
+        if best then return best end
+        -- induk telur (mis. model dudukan yang memegang prompt)
+        local par = egg.Parent
+        if par and par ~= workspace and (par:IsA("Model") or par:IsA("Folder")) then
+            local cnt = 0
+            for _, d in ipairs(par:GetDescendants()) do
+                cnt += 1
+                if cnt > 300 then break end
+                if d:IsA("ProximityPrompt") then
+                    local part = partOf(d)
+                    if part and (part.Position - pos).Magnitude <= 70 then check(d, part) end
+                end
+            end
+        end
+        if best then return best end
+        local ok, parts = pcall(function() return workspace:GetPartBoundsInRadius(pos, 70) end)
+        if not ok then return nil end
+        for _, part in ipairs(parts) do
+            for _, c in ipairs(part:GetChildren()) do
+                if c:IsA("ProximityPrompt") then check(c, part) end
+                if c:IsA("Attachment") then
+                    for _, cc in ipairs(c:GetChildren()) do
+                        if cc:IsA("ProximityPrompt") then check(cc, part) end
+                    end
+                end
+            end
+        end
+        return best
+    end
+end
+
+-- TELUR ASLI = lolos pengecekan palsu (mengikuti RADAR TELUR PALSU) dan Radar sedang aktif.
+-- Return: ok, alasan, soft, prompt   (soft = hanya perlu menunggu, bukan palsu)
+local function verifyRealEgg(egg)
+    if not espEnabled then return false, "nyalakan Radar Telur Palsu dulu", true end
+    local fk, why, soft = isFakeEgg(egg)
+    if fk then return false, why, soft end
+    local pos = eggPosition(egg)
+    if not pos then return false, "posisi telur belum terbaca", true end
+    -- prompt ambil dicari sekarang kalau sudah ada; kalau belum (telur jauh / belum termuat)
+    -- dicari lagi setelah sampai di telur. Hasilnya di-cache supaya tidak dicari berulang.
+    local e, now = eggMove[egg], os.clock()
+    local pp
+    if e and e.ppAt and now - e.ppAt < 1.5 and (e.pp == nil or (e.pp.Parent and e.pp.Enabled)) then
+        pp = e.pp
+    else
+        pp = nearestPrompt(egg, pos)
+        if e then e.pp, e.ppAt = pp, now end
+    end
+    return true, nil, false, pp
+end
+
+local gateMsgAt = 0
+-- Pilih telur pertama (urutan prioritas) yang lolos verifikasi. Yang palsu dibuang;
+-- kalau yang teratas masih menunggu, tunggu paling lama 3 detik lalu lewati dulu.
+local function chooseReal(cands)
+    if not espEnabled then
+        if #cands > 0 and os.clock() - gateMsgAt > 2 then
+            gateMsgAt = os.clock()
+            setAct("🔒 Nyalakan Radar Telur Palsu (tab ESP) dulu", C.warn)
+        end
+        return nil
+    end
+    local now = os.clock()
+    for _, r in ipairs(cands) do
+        local ok, why, soft = verifyRealEgg(r.inst)
+        local e = eggMove[r.inst]
+        if ok then
+            if e then e.softSince = nil end
+            return r
+        end
+        if soft then
+            if not e then return nil end
+            e.softSince = e.softSince or now
+            if now - e.softSince < 3 then return nil end
+            e.softSince = nil
+            failedUntil[r.inst] = now + 30
+        else
+            failedUntil[r.inst] = now + 60
+        end
+    end
+    return nil
+end
+
 local memoText, memoRar = newSet(), newSet()
 local function labelRarity(l)
     local tx = l.Text
@@ -1480,7 +2033,11 @@ local function scanEggs()
         local name, price, isEggName = eggInfo(bb, egg)
         if not isEggName then st.notegg += 1 rejectUntil[egg] = now + 3 return end
         -- Telur asli punya harga ($). Papan spawn/jadwal tidak punya -> dibuang
-        if bb and not price then st.noprice += 1 rejectUntil[egg] = now + 2 return end
+        if bb and not price then
+            -- format harga bisa beda tiap game: telur asli tetap lolos kalau ada prompt ambil di dekatnya
+            local okp, pr = pcall(nearestPrompt, egg, pos)
+            if not (okp and pr) then st.noprice += 1 rejectUntil[egg] = now + 2 return end
+        end
         if isPenEgg(egg, bb) then st.pen += 1 rejectUntil[egg] = now + 3 return end
 
         local isFake = isFakeEgg(egg)
@@ -1505,7 +2062,7 @@ local function scanEggs()
         consider(egg, bb, rar)
     end
 
-    for d in pairs(wsLabels) do
+    for d in pairs(wsRar) do
         if d.Parent then
             local rar = labelRarity(d)
             if rar then handle(d, rar, "lw") end
@@ -1530,13 +2087,9 @@ local function scanEggs()
     allEggResults = {}
     for i, r in ipairs(results) do allEggResults[i] = r end
 
-    -- hanya tampilkan rarity tertinggi yang sedang ada
-    local topRank = 0
-    for _, r in ipairs(results) do
-        if r.rar.rank > topRank then topRank = r.rar.rank end
-    end
+    -- Hanya rarity yang dicentang
     for i = #results, 1, -1 do
-        if results[i].rar.rank < topRank then table.remove(results, i) end
+        if not selRar[results[i].rar.name] then table.remove(results, i) end
     end
 
     table.sort(results, function(a, b)
@@ -1547,16 +2100,6 @@ local function scanEggs()
     return results, excluded, st
 end
 
-local function teleportToEgg(inst)
-    if isFakeEgg(inst) then return end
-    local pos = inst.Parent and eggPosition(inst)
-    local root = getRoot()
-    if pos and root then
-        root.AssemblyLinearVelocity = Vector3.zero
-        root.CFrame = CFrame.new(pos + Vector3.new(0, 4, 0))
-    end
-end
-
 local function teleportCF(cf)
     local root = getRoot()
     if root then
@@ -1565,203 +2108,176 @@ local function teleportCF(cf)
     end
 end
 
--- Cari ProximityPrompt terdekat dari telur (di telur, di induknya, atau di sekitarnya)
-local function nearestPrompt(egg, pos)
-    for _, d in ipairs(egg:GetDescendants()) do
-        if d:IsA("ProximityPrompt") and d.Enabled then return d end
-    end
-    local best, bd
-    local function check(pp, part)
-        if pp:IsA("ProximityPrompt") and pp.Enabled and part then
-            local dist = (part.Position - pos).Magnitude
-            if not bd or dist < bd then best, bd = pp, dist end
-        end
-    end
-    -- induk telur (mis. model dudukan yang memegang prompt)
-    local par = egg.Parent
-    if par and par ~= workspace and (par:IsA("Model") or par:IsA("Folder")) then
-        local cnt = 0
-        for _, d in ipairs(par:GetDescendants()) do
-            cnt += 1
-            if cnt > 300 then break end
-            if d:IsA("ProximityPrompt") and d.Enabled then
-                local part = d:FindFirstAncestorWhichIsA("BasePart")
-                if part and (part.Position - pos).Magnitude <= 25 then check(d, part) end
-            end
-        end
-    end
-    if best then return best end
-    local ok, parts = pcall(function() return workspace:GetPartBoundsInRadius(pos, 25) end)
-    if not ok then return nil end
-    for _, part in ipairs(parts) do
-        for _, c in ipairs(part:GetChildren()) do
-            check(c, part)
-            if c:IsA("Attachment") then
-                for _, cc in ipairs(c:GetChildren()) do check(cc, part) end
-            end
-        end
-    end
-    return best
-end
-
 local function pressPrompt(pp)
+    if not pp or not pp.Parent then return end
+    if isPlayerPart(pp) or humanoidAncestor(pp) then return end
+    if not pp:IsA("ProximityPrompt") then
+        if pp:IsA("ClickDetector") and fireclickdetector then
+            pcall(fireclickdetector, pp)
+        end
+        return
+    end
+    local sc = promptOk and promptOk(pp)
+    if sc == nil then return end
     pcall(function()
         pp.HoldDuration = 0
         pp.RequiresLineOfSight = false
-        if pp.MaxActivationDistance < 40 then pp.MaxActivationDistance = 40 end
+        if pp.MaxActivationDistance < 80 then pp.MaxActivationDistance = 80 end
     end)
-    if fireproximityprompt then
-        pcall(fireproximityprompt, pp)
-    else
+    -- tekan berkali-kali agar beli/ambil pasti terpicu
+    for _ = 1, 4 do
+        if fireproximityprompt then
+            pcall(fireproximityprompt, pp)
+            pcall(function() fireproximityprompt(pp, 1) end)
+        end
         pcall(function()
             pp:InputHoldBegin()
-            task.wait(0.05)
+        end)
+        task.wait(0.03)
+        pcall(function()
             pp:InputHoldEnd()
         end)
+        task.wait(0.02)
     end
 end
 
-local onGrabbed -- diisi oleh fitur Auto Rebirth
+local onGrabbed
 
--- Teleport ke telur -> ambil otomatis -> balik ke base -> (opsional) kembali ke tempat awal
 local function grabAndReturn(egg, name, auto)
     if grabBusy then return end
+    espEnabled = true
     local root = getRoot()
     if not root then return end
     local pos = egg.Parent and eggPosition(egg)
     if not pos then
-        setAct("Telur sudah hilang, muat ulang daftar", C.bad)
+        setAct("Telur sudah hilang", C.bad)
         return
     end
 
-    -- Lapis 1: tolak telur palsu / pemain menyamar SEBELUM teleport
-    local fk, why = isFakeEgg(egg)
-    if fk then
-        failedUntil[egg] = os.clock() + 60
-        local r = eggRows[egg]
-        if r then r.row:Destroy() eggRows[egg] = nil end
-        setAct("🚫 Dibatalkan: telur palsu (" .. why .. ")", C.bad)
+    local okReal, why, soft, pp0 = verifyRealEgg(egg)
+    if not okReal and not soft then
+        failedUntil[egg] = os.clock() + 20
+        setAct("🚫 Skip: " .. tostring(why), C.bad)
         return
     end
 
     grabBusy = true
-    autoSuspendUntil = os.clock() + 30 -- tahan Auto Balik Base selama urutan berjalan
-    task.spawn(function()
-        local origin = root.CFrame
-        setAct("Teleport ke " .. tostring(name) .. "...", C.warn)
-        teleportCF(CFrame.new(pos + Vector3.new(0, 3, 0)))
-        task.wait()
+    autoSuspendUntil = os.clock() + 14
+    pcall(enableInstant)
 
-        -- tekan prompt tiap frame sampai telur terbawa (maks 5 detik)
-        local got, sawPrompt, vanished, fakeAbort = false, false, false, nil
+    task.spawn(function()
+      local okRun, errRun = pcall(function()
+        local origin = root.CFrame
+        setAct("⚡ Teleport + Beli " .. tostring(name) .. "...", C.warn)
+
+        -- teleport ke telur
+        teleportCF(CFrame.new(pos + Vector3.new(0, 3.5, 0)))
+        task.wait(0.06)
+        local p2 = egg.Parent and eggPosition(egg)
+        if p2 then
+            pos = p2
+            teleportCF(CFrame.new(pos + Vector3.new(0, 3.5, 0)))
+        end
+        task.wait(0.05)
+
+        local got, saw, vanished = false, false, false
         local t0 = os.clock()
-        local pp, lastCarry = nil, 0
-        while os.clock() - t0 < 5 do
-            local alive = egg.Parent ~= nil and egg:IsDescendantOf(workspace)
-            local p2 = alive and eggPosition(egg) or nil
-            -- Lapis 2: kalau ternyata telur menempel di pemain / punya Humanoid, hentikan
-            if alive then
-                local f2, w2 = isFakeEgg(egg, true)
-                if f2 then fakeAbort = w2 break end
-            end
+        local pp = pp0
+        local lastFind = 0
+
+        while os.clock() - t0 < 4.0 do
+            local alive = egg.Parent and egg:IsDescendantOf(workspace)
             local ch = LP.Character
-            if ch and egg:IsDescendantOf(ch) then got = true break end
-            if not alive or not p2 then
-                -- telur lenyap: bisa karena terbawa kita atau diambil orang lain
-                task.wait(0.15)
-                if carryingEgg() then got = true else vanished = true end
+
+            if carryingEgg() then got = true break end
+            if alive and ch and egg:IsDescendantOf(ch) then got = true break end
+
+            if not alive then
+                task.wait(0.08)
+                if carryingEgg() then got = true
+                elseif saw then got = true -- beli sukses sering menghapus model
+                else vanished = true end
                 break
             end
-            -- ikuti telur bila bergerak / kita terdorong menjauh
+
+            local pNow = eggPosition(egg) or pos
             local r = getRoot()
-            if r and (r.Position - p2).Magnitude > 10 then
-                teleportCF(CFrame.new(p2 + Vector3.new(0, 3, 0)))
+            if r and (r.Position - pNow).Magnitude > 12 then
+                teleportCF(CFrame.new(pNow + Vector3.new(0, 3.5, 0)))
             end
-            if not pp or not pp.Parent or not pp.Enabled then
-                pp = nearestPrompt(egg, p2)
+
+            if os.clock() - lastFind > 0.1 then
+                lastFind = os.clock()
+                local found = nearestPrompt(egg, pNow)
+                if found then pp = found end
             end
-            if pp then
-                sawPrompt = true
+
+            if pp and pp.Parent and pp.Enabled then
+                saw = true
                 pressPrompt(pp)
+            else
+                -- cari semua prompt dekat posisi telur dan tekan yang lolos
+                local okp, parts = pcall(function()
+                    return workspace:GetPartBoundsInRadius(pNow, 25)
+                end)
+                if okp then
+                    for _, part in ipairs(parts) do
+                        for _, c in ipairs(part:GetChildren()) do
+                            if c:IsA("ProximityPrompt") and c.Enabled and promptOk(c) then
+                                saw = true
+                                pressPrompt(c)
+                            end
+                        end
+                    end
+                end
             end
-            task.wait()
-            if os.clock() - lastCarry > 0.12 then
-                lastCarry = os.clock()
-                if carryingEgg() then got = true break end
-            end
+            task.wait(0.04)
         end
 
         if got then
-            setAct("Telur terambil!", C.good)
+            setAct("✓ Terbeli! Kembali...", C.good)
             if onGrabbed then pcall(onGrabbed, egg, name) end
-            local taken = eggRows[egg]
-            if taken then
-                taken.row:Destroy()
-                eggRows[egg] = nil
-            end
-            -- mode auto (Terbaik / Rebirth): selalu ke koordinat base dan menetap di sana
-            if optBase or auto then
-                if savedCF then
-                    teleportCF(savedCF + Vector3.new(0, 3, 0))
-                    setAct("Sampai di base", C.good)
-                    if optBack and not auto then task.wait(0.6) end
-                else
-                    setAct("Posisi base belum disimpan (tab Base), dilewati", C.warn)
-                end
-            end
-            if optBack and not auto then
-                teleportCF(origin)
-                setAct("Kembali ke tempat sebelumnya", C.good)
-            end
+            teleportCF(origin)
+            task.wait(0.05)
+            teleportCF(origin)
+            setAct("✓ Selesai — di posisi semula", C.good)
         else
-            if fakeAbort then
-                failedUntil[egg] = os.clock() + 60
-                setAct("🚫 Telur palsu terdeteksi (" .. fakeAbort .. "), kembali", C.bad)
-            elseif vanished then
-                setAct("Telur sudah diambil pemain lain (kembali)", C.bad)
-            elseif not sawPrompt then
-                setAct("Prompt ambil telur tidak ditemukan (kembali)", C.bad)
+            if vanished and not saw then
+                setAct("Telur hilang (mungkin dibeli orang)", C.bad)
+            elseif not saw then
+                setAct("Prompt beli tidak ketemu — coba dekat manual", C.bad)
             else
-                setAct("Prompt ditekan tapi telur tidak terbawa (kembali)", C.bad)
+                setAct("Prompt ditekan tapi belum terbeli (uang?)", C.warn)
             end
-            failedUntil[egg] = os.clock() + 15
-            if auto and savedCF then
-                teleportCF(savedCF + Vector3.new(0, 3, 0))
-            else
-                teleportCF(origin)
-            end
+            failedUntil[egg] = os.clock() + 5
+            teleportCF(origin)
         end
-
-        autoSuspendUntil = os.clock() + 6
-        grabBusy = false
+      end)
+      if not okRun then
+        setAct("Error: " .. tostring(errRun):sub(1, 40), C.bad)
+      end
+      autoSuspendUntil = math.max(autoSuspendUntil, os.clock() + 1.2)
+      grabBusy = false
     end)
 end
 
 local function renderEggs(results, excluded, st)
-    local keep = {}
-    for i, r in ipairs(results) do
-        keep[r.inst] = true
-        local e = eggRows[r.inst]
-        if not e then
-            local row, t, d, bar = makeRow(eggPage, r.name, "", r.rar.color)
-            local inst = r.inst
-            row.MouseButton1Click:Connect(function() grabAndReturn(inst, r.name) end)
-            e = { row = row, title = t, desc = d, bar = bar }
-            eggRows[r.inst] = e
-        end
-        e.title.Text = r.name
-        e.title.TextColor3 = r.rar.color
-        e.bar.BackgroundColor3 = r.rar.color
-        e.desc.Text = r.rar.name .. "  •  " .. (r.price or "-") .. "  •  " .. math.floor(r.dist) .. " stud"
-        e.row.LayoutOrder = i - 900 -- daftar telur selalu di atas kontrol
-    end
+    -- DAFTAR DISEMBUNYIKAN — hanya status Auto Beli
     for inst, e in pairs(eggRows) do
-        if not keep[inst] then
-            e.row:Destroy()
-            eggRows[inst] = nil
-        end
+        pcall(function() e.row:Destroy() end)
+        eggRows[inst] = nil
     end
-    emptyLabel.Visible = next(eggRows) == nil
+    emptyLabel.Visible = true
+    local n = results and #results or 0
+    local top = results and results[1]
+    if top then
+        emptyLabel.Text = ("🎯 Auto Beli: %s (%s) • %s • %d stud"):format(
+            tostring(top.name), top.rar.name, tostring(top.price or "-"), math.floor(top.dist or 0))
+        emptyLabel.TextColor3 = top.rar.color or C.muted
+    else
+        emptyLabel.Text = "⚡ Menunggu telur sesuai rarity..."
+        emptyLabel.TextColor3 = C.muted
+    end
 end
 
 local function refreshEggs()
@@ -1777,7 +2293,7 @@ local function refreshEggs()
 end
 
 addSection(eggPage, "◆ KONTROL", -500)
-addSection(eggPage, "◆ DAFTAR TELUR (teratas = terbaik)", -1000)
+addSection(eggPage, "◆ STATUS AUTO BELI", -1000)
 
 -- Refresh otomatis di latar belakang (tanpa tombol). Cepat saat Auto Ambil menyala atau daftar
 -- sedang dibuka; pelan saat menu tertutup supaya daftar langsung siap ketika dibuka.
@@ -1789,7 +2305,12 @@ task.spawn(function()
         local shown = main.Visible and eggPage.Visible
         if shown and not wasShown then acc = 99 end
         wasShown = shown
-        local want = (autoBest or autoRebirth) and 0.15 or (shown and 0.25 or 2)
+        local auto = autoBest or autoRebirth
+        local want = auto and 0.04 or (shown and 0.15 or 2)
+        if eggDirty then
+            eggDirty = false
+            if auto and acc >= 0.02 then acc = want end -- telur baru muncul: baca SEKARANG
+        end
         if acc >= want and not grabBusy then
             acc = 0
             refreshEggs()
@@ -1797,33 +2318,33 @@ task.spawn(function()
     end
 end)
 
--- Auto Ambil Telur Terbaik: rarity Eksotis (rank 3) ke atas, fake sudah dikecualikan oleh scan
-local AUTO_MIN_RANK = 3
+-- Auto Ambil Telur Terbaik: hanya rarity yang dipilih di menu Pilih Rarity (yang tertinggi dulu), fake sudah dikecualikan oleh scan
 task.spawn(function()
     while true do
-        task.wait(0.1)
-        if autoBest and not grabBusy and not eggRefreshing then
-            local best
-            for _, r in ipairs(allEggResults) do
-                local inst = r.inst
-                if r.rar.rank >= AUTO_MIN_RANK
-                    and inst.Parent and inst:IsDescendantOf(workspace)
-                    and not isPlayerPart(inst)
-                    and (failedUntil[inst] or 0) < os.clock() then
-                    if not best or r.rar.rank > best.rar.rank
-                        or (r.rar.rank == best.rar.rank and r.dist < best.dist) then
-                        best = r
+        task.wait(0.03)
+        local okA, errA = pcall(function()
+            if autoBest and not grabBusy and not eggRefreshing then
+                local cands = {}
+                for _, r in ipairs(allEggResults) do
+                    local inst = r.inst
+                    if selRar[r.rar.name]
+                        and inst.Parent and inst:IsDescendantOf(workspace)
+                        and not isPlayerPart(inst)
+                        and (failedUntil[inst] or 0) < os.clock() then
+                        cands[#cands + 1] = r
                     end
                 end
+                table.sort(cands, function(a, b)
+                    if a.rar.rank ~= b.rar.rank then return a.rar.rank > b.rar.rank end
+                    return a.dist < b.dist
+                end)
+                local best = chooseReal(cands) -- hanya telur terverifikasi asli
+                if best and not carryingEgg() then
+                    grabAndReturn(best.inst, best.name, true)
+                end
             end
-            if best and isFakeEgg(best.inst) then
-                failedUntil[best.inst] = os.clock() + 60
-                best = nil
-            end
-            if best and not carryingEgg() then
-                grabAndReturn(best.inst, best.name, true)
-            end
-        end
+        end)
+        if not okA then warn("[NB] auto ambil error:", errA) end
     end
 end)
 
@@ -1849,6 +2370,10 @@ rebStatus.LayoutOrder = -491
 rebStatus.Parent = eggPage
 
 local tReb = addToggle(eggPage, "Auto Ambil Rebirth", "Ambil yang dibutuhkan • otomatis ke base • berhenti jika cukup", function(on)
+    if on and not espEnabled then
+        setAct("🔒 Nyalakan Radar Telur Palsu (tab ESP) dulu", C.warn)
+        return false
+    end
     autoRebirth = on
     if on then ensureBase() end
     if not on then rebStatus.Text = "🎯 Nyalakan untuk membaca daftar kebutuhan rebirth" end
@@ -2083,20 +2608,18 @@ task.spawn(function()
                 rebStatus.Text = rebStatusText()
             end
             if not grabBusy and not eggRefreshing and #rebList > 0 then
-                local best
+                local cands = {}
                 for _, r in ipairs(allEggResults) do
                     local inst = r.inst
                     if inst.Parent and inst:IsDescendantOf(workspace)
                         and not isPlayerPart(inst)
                         and (failedUntil[inst] or 0) < os.clock()
                         and matchNeed(r) then
-                        if not best or r.dist < best.dist then best = r end
+                        cands[#cands + 1] = r
                     end
                 end
-                if best and isFakeEgg(best.inst) then
-                    failedUntil[best.inst] = os.clock() + 60
-                    best = nil
-                end
+                table.sort(cands, function(a, b) return a.dist < b.dist end)
+                local best = chooseReal(cands) -- hanya telur terverifikasi asli
                 if best and not carryingEgg() then
                     grabAndReturn(best.inst, best.name, true)
                 end
