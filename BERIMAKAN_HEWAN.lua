@@ -1,6 +1,6 @@
 -- NimeroHub | BERIMAKAN HEWAN v3 (Delta / Luau) - tema Merah Kehitaman
 -- Auto Perfect       : baca angka "+N", klik pas mencapai Target + auto "Klik untuk melanjutkan"
--- Auto Farm          : jaga karakter di FarmPos (koordinat tetap)
+-- Auto Farm          : jaga karakter di titik farm (tempat berdiri saat dinyalakan), kembali dengan gerakan halus
 -- Auto Click x2      : klik tombol x2 saat latihan + tap otomatis layar Tap Bonus kalau muncul
 
 -- Kunci game: hanya jalan di "[🎃] Throw Food For Animals"
@@ -96,7 +96,7 @@ end
 local idx, idxT = {}, 0
 local function texts()
 	local now = os.clock()
-	if now - idxT > 0.3 then
+	if now - idxT > 0.6 then
 		idxT = now
 		local out = {}
 		for _, o in ipairs(pg:GetDescendants()) do
@@ -159,6 +159,24 @@ local MOBILE = UIS.TouchEnabled and not UIS.KeyboardEnabled
 local userTouches, injectUntil, injectPos = {}, 0, Vector2.new(-9999, -9999)
 local lastUserTouchT = 0 -- waktu terakhir sentuhan ASLI pemain (mulai / geser / lepas)
 local ourHitTest = function() return false end -- diisi setelah UI dibuat
+local overOurUI = function() return false end -- (pos, pad) -> true kalau titik itu tertutup UI NimeroHub; diisi setelah UI dibuat
+local function freeInRect(g)
+	-- cari titik di dalam elemen g yang TIDAK tertutup UI NimeroHub (supaya klik otomatis tidak menyentuh menu)
+	local sg = g:FindFirstAncestorWhichIsA("ScreenGui")
+	local inset = Vector2.zero
+	if not (sg and sg.IgnoreGuiInset) then
+		local ok, v = pcall(function() return GuiService:GetGuiInset() end)
+		if ok and v then inset = v end
+	end
+	local a, sz = g.AbsolutePosition + inset, g.AbsoluteSize
+	for _, fy in ipairs({ 0.5, 0.3, 0.7, 0.15, 0.85 }) do
+		for _, fx in ipairs({ 0.5, 0.3, 0.7, 0.15, 0.85 }) do
+			local p = Vector2.new(a.X + sz.X * fx, a.Y + sz.Y * fy)
+			if not overOurUI(p, 10) then return p end
+		end
+	end
+	return nil
+end
 
 -- sentuhan buatan (hasil klik otomatis) dikenali dari posisi + waktu yang sangat dekat
 local function isInjected(i)
@@ -205,7 +223,23 @@ local function click(pos, force)
 		lastClickT = os.clock()
 		local m = CFG.ClickMode
 		local cam = workspace.CurrentCamera
-		local c = pos or (cam and cam.ViewportSize / 2) or Vector2.new(300, 300)
+		local c = pos
+		if not c then
+			-- klik "bebas" (mis. Auto Perfect): pakai titik layar yang tidak tertutup menu/gelembung
+			local vs = cam and cam.ViewportSize or Vector2.new(600, 600)
+			c = Vector2.new(vs.X / 2, vs.Y / 2)
+			if overOurUI(c, 10) then
+				local found
+				for _, f in ipairs({ { 0.35, 0.5 }, { 0.65, 0.5 }, { 0.5, 0.35 }, { 0.5, 0.65 }, { 0.25, 0.4 }, { 0.75, 0.4 }, { 0.3, 0.7 }, { 0.7, 0.7 } }) do
+					local q = Vector2.new(vs.X * f[1], vs.Y * f[2])
+					if not overOurUI(q, 10) then found = q break end
+				end
+				if not found then return end
+				c = found
+			end
+		elseif overOurUI(c, 6) then
+			return -- target tertutup menu sendiri: jangan klik layar (hindari menekan menu)
+		end
 		if (m == 1 or m == 4) and not pos then
 			local char = lp.Character
 			local tool = char and char:FindFirstChildOfClass("Tool")
@@ -492,7 +526,7 @@ local bscale = Instance.new("UIScale")
 bscale.Parent = bubble
 
 -- Panel
-local PW, PH = 248, 304
+local PW, PH = 272, 304
 local panelOpen = false
 local setPanel
 
@@ -551,7 +585,6 @@ glowGrad.Transparency = NumberSequence.new({
 glowGrad.Rotation = 90
 glowGrad.Parent = glow
 
-spawnEmbers(panel, 8, 1, false)
 
 -- header
 local header = Instance.new("Frame")
@@ -619,16 +652,43 @@ dot.BackgroundColor3 = OFFC
 dot.Parent = header
 corner(dot, 5)
 
+-- Ikon centang / silang digambar dengan Frame (huruf ✓ ✕ tampil rusak di sebagian executor)
+local function drawGlyph(parent, kind, color, u)
+	u = u or 1
+	local bars = {}
+	local function bar(w, h, dx, dy, rot)
+		local f = Instance.new("Frame")
+		f.AnchorPoint = Vector2.new(0.5, 0.5)
+		f.Size = UDim2.fromOffset(w * u, h * u)
+		f.Position = UDim2.new(0.5, dx * u, 0.5, dy * u)
+		f.Rotation = rot
+		f.BackgroundColor3 = color
+		f.BorderSizePixel = 0
+		f.Parent = parent
+		corner(f, 2)
+		bars[#bars + 1] = f
+	end
+	if kind == "check" then
+		bar(7, 3, -4, 2, 45)
+		bar(13, 3, 2, 0, -45)
+	else
+		bar(14, 3, 0, 0, 45)
+		bar(14, 3, 0, 0, -45)
+	end
+	return bars
+end
+
 local closeBtn = Instance.new("TextButton")
 closeBtn.Size = UDim2.fromOffset(28, 28)
 closeBtn.Position = UDim2.new(1, -40, 0.5, -14)
 closeBtn.BackgroundColor3 = ROW_DOWN
-closeBtn.Text = "✕"
+closeBtn.Text = ""
 closeBtn.TextColor3 = TXT
 closeBtn.Font = Enum.Font.GothamBold
 closeBtn.TextSize = 14
 closeBtn.AutoButtonColor = false
 closeBtn.Parent = header
+drawGlyph(closeBtn, "x", TXT, 0.7)
 corner(closeBtn, 9)
 stroke(closeBtn, ON, 1, 0.6)
 closeBtn.MouseButton1Click:Connect(function()
@@ -674,8 +734,8 @@ end
 -- Notifikasi kotak (muncul dari atas, menumpuk maks 3, hilang sendiri)
 local toastHolder = Instance.new("Frame")
 toastHolder.Name = "Toasts"
-toastHolder.AnchorPoint = Vector2.new(0.5, 0)
-toastHolder.Position = UDim2.new(0.5, 0, 0, 46)
+toastHolder.AnchorPoint = Vector2.new(1, 0)
+toastHolder.Position = UDim2.new(1, -16, 0, 10)
 toastHolder.Size = UDim2.fromOffset(250, 200)
 toastHolder.BackgroundTransparency = 1
 toastHolder.ZIndex = 100
@@ -683,20 +743,28 @@ toastHolder.Parent = gui
 local tl = Instance.new("UIListLayout")
 tl.Padding = UDim.new(0, 8)
 tl.SortOrder = Enum.SortOrder.LayoutOrder
-tl.HorizontalAlignment = Enum.HorizontalAlignment.Center
+tl.HorizontalAlignment = Enum.HorizontalAlignment.Right
 tl.Parent = toastHolder
 
 local toastN, toastLive = 0, {}
+
+-- Semua bagian notifikasi memakai Frame biasa (tanpa CanvasGroup) supaya sudutnya rapi di semua perangkat.
+-- Memudar dilakukan dengan menggeser transparansi tiap bagian.
+local function toastFade(t, toVisible, dur)
+	for _, it in ipairs(t.items) do
+		tw(it.obj, dur, { [it.prop] = toVisible and it.vis or 1 })
+	end
+end
+
 local function dismissToast(t)
 	if not t or t.gone then return end
 	t.gone = true
-	tw(t.card, 0.25, { GroupTransparency = 1 })
-	tw(t.slide, 0.25, { Position = UDim2.fromOffset(0, -18) }, Enum.EasingStyle.Quad)
-	task.delay(0.28, function() pcall(function() t.wrap:Destroy() end) end)
+	toastFade(t, false, 0.22)
+	tw(t.slide, 0.25, { Position = UDim2.fromOffset(0, -14) }, Enum.EasingStyle.Quad)
+	task.delay(0.3, function() pcall(function() t.wrap:Destroy() end) end)
 end
 
-local function toast(title, on)
-	-- notifikasi lama untuk fitur yang sama diganti
+local function toast(title, on, sub)
 	local old = toastLive[title]
 	if old then dismissToast(old) end
 	local live = 0
@@ -708,92 +776,95 @@ local function toast(title, on)
 	end
 
 	toastN += 1
-	local col = on and ON or Color3.fromRGB(128, 96, 100)
-	local wrap = Instance.new("Frame")
-	wrap.Size = UDim2.fromOffset(250, 46)
+	local col = on and ON or Color3.fromRGB(150, 110, 116)
+	local items = {}
+	local function reg(obj, prop, vis)
+		items[#items + 1] = { obj = obj, prop = prop, vis = vis }
+		obj[prop] = 1
+	end
+
+	local wrap = Instance.new("Frame") -- tempat di daftar (ukuran tetap & rata tengah)
+	wrap.Size = UDim2.fromOffset(250, 44)
 	wrap.BackgroundTransparency = 1
 	wrap.LayoutOrder = toastN
 	wrap.Parent = toastHolder
 
-	local slide = Instance.new("Frame") -- dipakai untuk gerak masuk/keluar
+	local slide = Instance.new("Frame") -- hanya untuk gerak masuk / keluar
 	slide.Size = UDim2.fromScale(1, 1)
-	slide.Position = UDim2.fromOffset(0, -26)
+	slide.Position = UDim2.fromOffset(0, -22)
 	slide.BackgroundTransparency = 1
 	slide.Parent = wrap
 
-	local card = Instance.new("CanvasGroup")
+	local card = Instance.new("Frame")
+	card.Name = "ToastCard"
 	card.Size = UDim2.fromScale(1, 1)
-	card.BackgroundTransparency = 1
-	card.GroupTransparency = 1
+	card.BackgroundColor3 = Color3.fromRGB(20, 6, 10)
+	card.BorderSizePixel = 0
 	card.Parent = slide
 	corner(card, 12)
-	local cbg = Instance.new("Frame") -- latar terpisah (gradient di CanvasGroup menggelapkan isinya)
-	cbg.Size = UDim2.fromScale(1, 1)
-	cbg.BackgroundColor3 = Color3.new(1, 1, 1)
-	cbg.BorderSizePixel = 0
-	cbg.ZIndex = 0
-	cbg.Parent = card
-	corner(cbg, 12)
-	local g = Instance.new("UIGradient")
-	g.Color = ColorSequence.new(Color3.fromRGB(44, 10, 16), Color3.fromRGB(12, 4, 7))
-	g.Rotation = 0
-	g.Parent = cbg
+	reg(card, "BackgroundTransparency", 0.04)
+	local cg = Instance.new("UIGradient")
+	cg.Color = ColorSequence.new(Color3.fromRGB(46, 11, 18), Color3.fromRGB(14, 5, 8))
+	cg.Parent = card
+	local cs = stroke(card, col, 1.2, 1)
+	items[#items + 1] = { obj = cs, prop = "Transparency", vis = 0.45 }
 
-	local bar = Instance.new("Frame")
-	bar.Size = UDim2.new(0, 4, 1, -16)
-	bar.Position = UDim2.fromOffset(7, 8)
-	bar.BackgroundColor3 = col
-	bar.BorderSizePixel = 0
-	bar.Parent = card
-	corner(bar, 2)
-
+	-- ikon bulat (kiri, sejajar tengah)
 	local ic = Instance.new("Frame")
-	ic.Size = UDim2.fromOffset(26, 26)
-	ic.Position = UDim2.new(0, 22, 0.5, -13)
+	ic.AnchorPoint = Vector2.new(0, 0.5)
+	ic.Size = UDim2.fromOffset(24, 24)
+	ic.Position = UDim2.new(0, 12, 0.5, 0)
 	ic.BackgroundColor3 = col
+	ic.BorderSizePixel = 0
 	ic.Parent = card
-	corner(ic, 13)
-	local icl = label(ic, on and "✓" or "✕", 15, Color3.new(1, 1, 1), Enum.Font.GothamBlack, Enum.TextXAlignment.Center)
-	icl.Size = UDim2.fromScale(1, 1)
+	corner(ic, 12)
+	reg(ic, "BackgroundTransparency", 0)
+	for _, b in ipairs(drawGlyph(ic, on and "check" or "x", Color3.new(1, 1, 1), 0.78)) do
+		reg(b, "BackgroundTransparency", 0)
+	end
 
+	-- teks (kiri sejajar, dua baris rapi)
 	local t1 = label(card, title, 17, TXT, FONT_ROW)
-	t1.Size = UDim2.new(1, -68, 0, 20)
-	t1.Position = UDim2.fromOffset(58, 5)
+	t1.Size = UDim2.new(1, -60, 0, 18)
+	t1.Position = UDim2.fromOffset(48, 5)
 	t1.TextTruncate = Enum.TextTruncate.AtEnd
-	local t2 = label(card, on and "AKTIF" or "NONAKTIF", 9, col, FONT_TAG)
-	t2.Size = UDim2.new(1, -68, 0, 12)
-	t2.Position = UDim2.fromOffset(58, 26)
+	t1.TextYAlignment = Enum.TextYAlignment.Center
+	reg(t1, "TextTransparency", 0)
+	local t2 = label(card, sub or (on and "AKTIF" or "NONAKTIF"), 8, col, FONT_TAG)
+	t2.Size = UDim2.new(1, -60, 0, 10)
+	t2.Position = UDim2.fromOffset(48, 24)
+	t2.TextYAlignment = Enum.TextYAlignment.Center
+	reg(t2, "TextTransparency", 0)
 
-	local life = Instance.new("Frame") -- garis waktu di dasar kotak
-	life.AnchorPoint = Vector2.new(0, 0)
-	life.Size = UDim2.new(1, -28, 0, 2)
-	life.Position = UDim2.new(0, 14, 1, -5)
+	-- garis waktu tipis di dasar, ada jarak kiri-kanan
+	local track = Instance.new("Frame")
+	track.Size = UDim2.new(1, -24, 0, 2)
+	track.Position = UDim2.new(0, 12, 1, -6)
+	track.BackgroundColor3 = col
+	track.BorderSizePixel = 0
+	track.Parent = card
+	corner(track, 1)
+	reg(track, "BackgroundTransparency", 0.75)
+	local life = Instance.new("Frame")
+	life.Size = UDim2.fromScale(1, 1)
 	life.BackgroundColor3 = col
 	life.BorderSizePixel = 0
-	life.Parent = card
+	life.Parent = track
+	corner(life, 1)
+	reg(life, "BackgroundTransparency", 0)
 
-	local edge = Instance.new("Frame")
-	edge.Size = UDim2.new(1, -2, 1, -2)
-	edge.Position = UDim2.fromOffset(1, 1)
-	edge.BackgroundTransparency = 1
-	edge.ZIndex = 5
-	edge.Parent = card
-	corner(edge, 11)
-	stroke(edge, col, 1.2, 0.45)
-
-	local t = { wrap = wrap, slide = slide, card = card, gone = false }
+	local t = { wrap = wrap, slide = slide, card = card, items = items, gone = false }
 	toastLive[title] = t
 
-	tw(card, 0.25, { GroupTransparency = 0 })
-	tw(slide, 0.38, { Position = UDim2.fromOffset(0, 0) }, Enum.EasingStyle.Back)
-	ic.Size = UDim2.fromOffset(12, 12)
-	ic.Position = UDim2.new(0, 22, 0.5, -6)
-	tw(ic, 0.45, { Size = UDim2.fromOffset(26, 26), Position = UDim2.new(0, 22, 0.5, -13) }, Enum.EasingStyle.Back)
-	tw(life, 2.4, { Size = UDim2.new(0, 0, 0, 2) }, Enum.EasingStyle.Linear)
+	toastFade(t, true, 0.22)
+	tw(slide, 0.35, { Position = UDim2.fromOffset(0, 0) }, Enum.EasingStyle.Back)
+	tw(life, 2.4, { Size = UDim2.new(0, 0, 1, 0) }, Enum.EasingStyle.Linear)
 	task.delay(2.4, function() dismissToast(t) end)
 end
 
-local function makeSwitch(text, y, get, set)
+local featStatus = {}   -- key -> function yang mengembalikan teks status singkat
+local rowTicks = {}
+local function makeSwitch(text, y, get, set, key)
 	local row = Instance.new("TextButton")
 	row.Size = UDim2.new(1, -24, 0, 34)
 	row.Position = UDim2.new(0, 12, 0, y)
@@ -829,11 +900,12 @@ local function makeSwitch(text, y, get, set)
 	corner(accentBar, 2)
 
 	local lb = label(row, text, 17, TXT, FONT_ROW)
-	lb.Size = UDim2.new(1, -108, 1, 0)
+	lb.Size = UDim2.new(1, -160, 1, 0)
 	lb.Position = UDim2.fromOffset(16, 0)
 	local tag = label(row, "OFF", 8, SUB, FONT_TAG, Enum.TextXAlignment.Right)
-	tag.Size = UDim2.fromOffset(30, 34)
-	tag.Position = UDim2.new(1, -86, 0, 0)
+	tag.Size = UDim2.fromOffset(92, 34)
+	tag.Position = UDim2.new(1, -150, 0, 0)
+	tag.TextTruncate = Enum.TextTruncate.AtEnd
 
 	local track = Instance.new("Frame")
 	track.Size = UDim2.fromOffset(40, 22)
@@ -860,7 +932,7 @@ local function makeSwitch(text, y, get, set)
 		tw(rstroke, d, { Color = on and ON or ACCENT, Transparency = on and 0.3 or 0.6 })
 		tw(lb, d, { TextColor3 = on and Color3.new(1, 1, 1) or TXT })
 		tw(tag, d, { TextColor3 = on and ON or SUB })
-		tag.Text = on and "ON" or "OFF"
+		tag.Text = on and ((key and featStatus[key] and featStatus[key]()) or "ON") or "OFF"
 		if first then
 			knob.Position = on and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
 		else
@@ -874,12 +946,16 @@ local function makeSwitch(text, y, get, set)
 		set(not get())
 		render()
 		local on = get()
-		sfxToggle(on)
-		toast(text, on)
+		pcall(sfxToggle, on)
+		local okT, errT = pcall(toast, text, on)
+		if not okT then lastErr = "notif: " .. tostring(errT) end
 		-- kedip singkat pada baris
 		row.BackgroundColor3 = on and ROW_DOWN or ROW
 		tw(row, 0.35, { BackgroundColor3 = ROW })
 	end)
+	rowTicks[#rowTicks + 1] = function()
+		if get() and key and featStatus[key] then tag.Text = featStatus[key]() end
+	end
 	render()
 	return render, row
 end
@@ -888,89 +964,92 @@ end
 -- HUD atas tengah: FPS | jumlah pemain | jam
 ------------------------------------------------------------
 do
-	local hud = Instance.new("CanvasGroup")
-	hud.Name = "InfoHUD"
-	hud.AnchorPoint = Vector2.new(0.5, 0)
-	hud.Position = UDim2.new(0.5, 0, 0, 8)
-	hud.Size = UDim2.fromOffset(264, 28)
-	hud.BackgroundTransparency = 1
-	hud.GroupTransparency = 1
-	hud.ZIndex = 90
-	hud.Parent = gui
-	corner(hud, 14)
-	-- latar di frame terpisah: UIGradient di CanvasGroup akan menggelapkan SEMUA isinya (teks jadi tak terlihat)
-	local hbg = Instance.new("Frame")
-	hbg.Size = UDim2.fromScale(1, 1)
-	hbg.BackgroundColor3 = Color3.new(1, 1, 1)
-	hbg.BorderSizePixel = 0
-	hbg.ZIndex = 0
-	hbg.Parent = hud
-	corner(hbg, 14)
-	local hg = Instance.new("UIGradient")
-	hg.Color = ColorSequence.new(Color3.fromRGB(40, 9, 15), Color3.fromRGB(12, 4, 7))
-	hg.Parent = hbg
+	local okHud, errHud = pcall(function()
+		local hud = Instance.new("CanvasGroup")
+		hud.Name = "InfoHUD"
+		hud.AnchorPoint = Vector2.new(0.5, 0)
+		hud.Position = UDim2.new(0.5, 0, 0, 8)
+		hud.Size = UDim2.fromOffset(264, 28)
+		hud.BackgroundTransparency = 1
+		hud.GroupTransparency = 1
+		hud.ZIndex = 90
+		hud.Parent = gui
+		corner(hud, 14)
+		-- latar di frame terpisah: UIGradient di CanvasGroup akan menggelapkan SEMUA isinya (teks jadi tak terlihat)
+		local hbg = Instance.new("Frame")
+		hbg.Size = UDim2.fromScale(1, 1)
+		hbg.BackgroundColor3 = Color3.new(1, 1, 1)
+		hbg.BorderSizePixel = 0
+		hbg.ZIndex = 0
+		hbg.Parent = hud
+		corner(hbg, 14)
+		local hg = Instance.new("UIGradient")
+		hg.Color = ColorSequence.new(Color3.fromRGB(40, 9, 15), Color3.fromRGB(12, 4, 7))
+		hg.Parent = hbg
 
-	local hedge = Instance.new("Frame")
-	hedge.Size = UDim2.new(1, -2, 1, -2)
-	hedge.Position = UDim2.fromOffset(1, 1)
-	hedge.BackgroundTransparency = 1
-	hedge.ZIndex = 95
-	hedge.Parent = hud
-	corner(hedge, 13)
-	stroke(hedge, ON, 1.2, 0.5)
+		local hedge = Instance.new("Frame")
+		hedge.Size = UDim2.new(1, -2, 1, -2)
+		hedge.Position = UDim2.fromOffset(1, 1)
+		hedge.BackgroundTransparency = 1
+		hedge.ZIndex = 95
+		hedge.Parent = hud
+		corner(hedge, 13)
+		stroke(hedge, ON, 1.2, 0.5)
 
-	-- tiga kolom sama lebar + pemisah tipis
-	local function cell(i, ico)
-		local f = Instance.new("Frame")
-		f.Size = UDim2.new(1 / 3, 0, 1, 0)
-		f.Position = UDim2.new((i - 1) / 3, 0, 0, 0)
-		f.BackgroundTransparency = 1
-		f.Parent = hud
-		local ic = label(f, ico, 9, SUB, FONT_TAG, Enum.TextXAlignment.Left)
-		ic.Size = UDim2.fromOffset(26, 28)
-		ic.Position = UDim2.fromOffset(10, 0)
-		local val = label(f, "-", 12, TXT, FONT_ROW, Enum.TextXAlignment.Right)
-		val.Size = UDim2.new(1, -40, 1, 0)
-		val.Position = UDim2.fromOffset(30, 0)
-		if i > 1 then
-			local sep = Instance.new("Frame")
-			sep.Size = UDim2.fromOffset(1, 14)
-			sep.Position = UDim2.new(0, 0, 0.5, -7)
-			sep.BackgroundColor3 = ON
-			sep.BackgroundTransparency = 0.6
-			sep.BorderSizePixel = 0
-			sep.Parent = f
+		-- tiga kolom sama lebar + pemisah tipis
+		local function cell(i, ico)
+			local f = Instance.new("Frame")
+			f.Size = UDim2.new(1 / 3, 0, 1, 0)
+			f.Position = UDim2.new((i - 1) / 3, 0, 0, 0)
+			f.BackgroundTransparency = 1
+			f.Parent = hud
+			local ic = label(f, ico, 9, SUB, FONT_TAG, Enum.TextXAlignment.Left)
+			ic.Size = UDim2.fromOffset(26, 28)
+			ic.Position = UDim2.fromOffset(10, 0)
+			local val = label(f, "-", 12, TXT, FONT_ROW, Enum.TextXAlignment.Right)
+			val.Size = UDim2.new(1, -40, 1, 0)
+			val.Position = UDim2.fromOffset(30, 0)
+			if i > 1 then
+				local sep = Instance.new("Frame")
+				sep.Size = UDim2.fromOffset(1, 14)
+				sep.Position = UDim2.new(0, 0, 0.5, -7)
+				sep.BackgroundColor3 = ON
+				sep.BackgroundTransparency = 0.6
+				sep.BorderSizePixel = 0
+				sep.Parent = f
+			end
+			return val
 		end
-		return val
-	end
-	local fpsV = cell(1, "FPS")
-	local plrV = cell(2, "PLR")
-	local clkV = cell(3, "JAM")
+		local fpsV = cell(1, "FPS")
+		local plrV = cell(2, "PLR")
+		local clkV = cell(3, "JAM")
 
-	tw(hud, 0.5, { GroupTransparency = 0 })
+		tw(hud, 0.5, { GroupTransparency = 0 })
 
-	-- FPS: hitung frame tiap 0.5 detik, dihaluskan
-	local frames, tAcc, fps = 0, 0, 60
-	bind(RunService.RenderStepped:Connect(function(dt)
-		frames += 1
-		tAcc += dt
-		if tAcc >= 0.5 then
-			local cur = frames / tAcc
-			fps = fps * 0.5 + cur * 0.5
-			frames, tAcc = 0, 0
-			local f = math.floor(fps + 0.5)
-			fpsV.Text = tostring(f)
-			local col = f >= 50 and Color3.fromRGB(110, 235, 140)
-				or (f >= 30 and Color3.fromRGB(255, 200, 80) or ON)
-			tw(fpsV, 0.3, { TextColor3 = col })
-		end
-	end))
+		-- FPS: hitung frame tiap 0.5 detik, dihaluskan
+		local frames, tAcc, fps = 0, 0, 60
+		bind(RunService.RenderStepped:Connect(function(dt)
+			frames += 1
+			tAcc += dt
+			if tAcc >= 0.5 then
+				local cur = frames / tAcc
+				fps = fps * 0.5 + cur * 0.5
+				frames, tAcc = 0, 0
+				local f = math.floor(fps + 0.5)
+				fpsV.Text = tostring(f)
+				local col = f >= 50 and Color3.fromRGB(110, 235, 140)
+					or (f >= 30 and Color3.fromRGB(255, 200, 80) or ON)
+				tw(fpsV, 0.3, { TextColor3 = col })
+			end
+		end))
 
-	loop("hud", 0.5, function()
-		local n = #Players:GetPlayers()
-		plrV.Text = n .. "/" .. tostring(Players.MaxPlayers)
-		clkV.Text = os.date("%H:%M:%S")
+		loop("hud", 0.5, function()
+			local n = #Players:GetPlayers()
+			plrV.Text = n .. "/" .. tostring(Players.MaxPlayers)
+			clkV.Text = os.date("%H:%M:%S")
+		end)
 	end)
+	if not okHud then lastErr = "hud: " .. tostring(errHud) end
 end
 
 local function refreshBubble()
@@ -985,25 +1064,32 @@ end
 makeSwitch("Auto Perfect", 58, function() return CFG.Enabled end, function(v)
 	CFG.Enabled = v
 	refreshBubble()
-end)
+end, "perfect")
 makeSwitch("Auto Farm", 98, function() return CFG.AutoFarm end, function(v)
 	CFG.AutoFarm = v
 	CFG.FarmKick = v
 	refreshBubble()
-end)
+end, "farm")
 makeSwitch("Auto Click x2", 138, function() return CFG.AutoX2 end, function(v)
 	CFG.AutoX2 = v
 	refreshBubble()
+end, "x2")
+loop("rowstatus", 0.3, function()
+	for _, f in ipairs(rowTicks) do f() end
 end)
+
 -- label status disimpan tersembunyi (dipakai logika fitur di bawah)
 local statusHost = Instance.new("Frame")
 statusHost.Visible = false
 statusHost.Size = UDim2.fromOffset(10, 10)
 statusHost.BackgroundTransparency = 1
 statusHost.Parent = panel
-local status = label(statusHost, "Status: siap", 11, SUB)
+local status = label(statusHost, "siap", 11, SUB)
 local status2 = label(statusHost, "", 11, SUB)
 local farmMsg = ""
+featStatus.perfect = function() return status.Text end
+featStatus.farm = function() return farmMsg ~= "" and farmMsg or "siap" end
+featStatus.x2 = function() return status2.Text end
 
 -- kartu profil: avatar pemain + watermark TikTok
 local card = Instance.new("Frame")
@@ -1154,6 +1240,11 @@ local function placePanel(animate, bx, by)
 		end
 	end
 
+	-- jangan menimpa panel info (FPS/PLR/JAM) di atas tengah
+	if x < vs.X / 2 + 140 and x + pw > vs.X / 2 - 140 then
+		y = math.min(math.max(y, 46), math.max(m, vs.Y - ph - m))
+	end
+
 	local target = UDim2.fromOffset(x + pw / 2, y + ph / 2)
 	if animate and panel.Visible then
 		tw(panel, 0.22, { Position = target }, Enum.EasingStyle.Quad)
@@ -1235,6 +1326,26 @@ ourHitTest = function(pos)
 	return inside(bubble, q1) or inside(bubble, q2) or inside(panel, q1) or inside(panel, q2)
 end
 
+-- Titik layar tertutup UI NimeroHub? (gelembung, menu, panel info, notifikasi)
+overOurUI = function(q, pad)
+	pad = pad or 8
+	local function inside(g)
+		if not (g and g.Parent and g.Visible) then return false end
+		if g:IsA("CanvasGroup") and g.GroupTransparency >= 0.98 then return false end
+		local a, sz = g.AbsolutePosition, g.AbsoluteSize
+		return q.X >= a.X - pad and q.X <= a.X + sz.X + pad and q.Y >= a.Y - pad and q.Y <= a.Y + sz.Y + pad
+	end
+	if inside(bubble) or inside(panel) then return true end
+	if inside(gui:FindFirstChild("InfoHUD")) then return true end
+	local th = gui:FindFirstChild("Toasts")
+	if th then
+		for _, d in ipairs(th:GetDescendants()) do
+			if d.Name == "ToastCard" and inside(d) then return true end
+		end
+	end
+	return false
+end
+
 -- Drag gelembung (bebas di mana saja), tap = buka/tutup
 do
 	local dragging, moved, startIn, startPos = false, false, nil, nil
@@ -1301,52 +1412,212 @@ task.spawn(function()
 end)
 
 ------------------------------------------------------------
+-- Grafik Potato (bawaan, otomatis aktif): kualitas terendah, tanpa bayangan/efek/partikel
+------------------------------------------------------------
+task.spawn(function()
+	local Lighting = game:GetService("Lighting")
+	pcall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Level01 end)
+	pcall(function() UserSettings().GameSettings.SavedQualityLevel = Enum.SavedQualityLevel.QualityLevel1 end)
+	pcall(function() Lighting.GlobalShadows = false end)
+	pcall(function()
+		local t = workspace.Terrain
+		t.WaterWaveSize, t.WaterWaveSpeed, t.WaterReflectance = 0, 0, 0
+		pcall(function() t.Decoration = false end)
+	end)
+
+	local KILL = { ParticleEmitter = true, Trail = true, Beam = true, Fire = true, Smoke = true, Sparkles = true }
+	local function lighten(d)
+		local cn = d.ClassName
+		if KILL[cn] then
+			d.Enabled = false
+		elseif d:IsA("BasePart") then
+			d.CastShadow = false
+			d.Reflectance = 0
+			d.Material = Enum.Material.SmoothPlastic
+			if d:IsA("MeshPart") then
+				pcall(function() d.RenderFidelity = Enum.RenderFidelity.Performance end)
+			end
+		elseif cn == "SurfaceAppearance" then
+			d:Destroy()
+		end
+	end
+	local function fx(d)
+		if d:IsA("PostEffect") then d.Enabled = false
+		elseif d:IsA("Atmosphere") then d.Density = 0 end
+	end
+
+	for _, d in ipairs(Lighting:GetChildren()) do pcall(fx, d) end
+	bind(Lighting.ChildAdded:Connect(function(d) pcall(fx, d) end))
+	bind(workspace.DescendantAdded:Connect(function(d) pcall(lighten, d) end))
+
+	-- sapu bersih objek yang sudah ada, dicicil supaya tidak membuat game tersendat
+	local n = 0
+	for _, d in ipairs(workspace:GetDescendants()) do
+		pcall(lighten, d)
+		n += 1
+		if n % 800 == 0 then task.wait() end
+	end
+	task.delay(6, function() pcall(toast, "Grafik Potato", true, "BAWAAN") end)
+end)
+
+------------------------------------------------------------
 -- Auto Farm
 ------------------------------------------------------------
-local FARM_PAUSE = 2 -- detik jeda setelah pemain menggerakkan karakter sendiri
+local FARM_PAUSE = 2      -- detik jeda setelah pemain menggerakkan karakter sendiri
+local GLIDE_SPEED = 50    -- kecepatan maks meluncur kembali (stud/detik)
+local GLIDE_EASE = 5      -- makin besar = makin cepat melambat di dekat titik
+local JUMP_REANCHOR = 45  -- lompatan posisi (oleh game, mis. pindah area / respawn) > ini = titik farm ikut pindah
 local farmPauseUntil = 0
-local farmFixes = {} -- waktu koreksi terakhir (deteksi tarik-tarikan dengan server)
+local farmFixes = {}      -- waktu koreksi terakhir (deteksi tarik-tarikan dengan server)
+local farmAnchor = nil    -- titik farm = tempat karakter berdiri saat fitur dinyalakan / berhenti digerakkan pemain
+local farmLastPos, farmExpected = nil, nil
+local farmGliding, farmUserMoved = false, false
+local farmNote, farmTrainAt = "", 0
+local farmTpAt = 0
 
-loop("farm", 0.2, function()
-	if not CFG.AutoFarm then
-		farmPauseUntil = 0
-		farmFixes = {}
-		return
+-- Cari tombol (ProximityPrompt) untuk memulai latihan di sekitar titik farm
+local TRAIN_KEYS = { "latih", "train", "mulai", "start", "gym", "angkat", "lift", "pull", "push", "tarik", "dorong", "workout" }
+local TRAIN_SKIP = { "beli", "buy", "robux", "gamepass", "premium", "upgrade", "jual", "sell", "shop", "toko", "rebirth", "kostum", "costume", "suka", "like", "markas", "hewan", "pet", "egg", "telur" }
+local function findTrainPrompt(pos)
+	local ok, parts = pcall(function() return workspace:GetPartBoundsInRadius(pos, 28) end)
+	if not ok then return nil end
+	local best, bestSc, bestD
+	local function consider(pp, part)
+		if not (pp:IsA("ProximityPrompt") and pp.Enabled) then return end
+		local txt = (tostring(pp.ActionText) .. " " .. tostring(pp.ObjectText) .. " " .. pp.Name .. " " .. (pp.Parent and pp.Parent.Name or "")):lower()
+		for _, w in ipairs(TRAIN_SKIP) do
+			if string.find(txt, w, 1, true) then return end
+		end
+		local sc = 1
+		for _, w in ipairs(TRAIN_KEYS) do
+			if string.find(txt, w, 1, true) then sc = 2 break end
+		end
+		local d = (part.Position - pos).Magnitude
+		if sc == 1 and d > 15 then return end
+		if not best or sc > bestSc or (sc == bestSc and d < bestD) then best, bestSc, bestD = pp, sc, d end
 	end
-	if CFG.FarmKick then
-		CFG.FarmKick = false
-		farmPauseUntil = 0
-		farmFixes = {}
+	for _, part in ipairs(parts) do
+		for _, c in ipairs(part:GetChildren()) do
+			consider(c, part)
+			if c:IsA("Attachment") then
+				for _, cc in ipairs(c:GetChildren()) do consider(cc, part) end
+			end
+		end
 	end
+	return best
+end
 
-	local char = lp.Character
-	local hum = char and char:FindFirstChildOfClass("Humanoid")
-	local hrp = char and char:FindFirstChild("HumanoidRootPart")
-	if not (hrp and hum and hum.Health > 0 and char:IsDescendantOf(workspace)) then return end
-
-	local now = os.clock()
-	-- pemain menggerakkan karakter sendiri -> jangan ditarik balik sebentar
-	if hum.MoveDirection.Magnitude > 0.1 or userBusy() then
-		farmPauseUntil = now + FARM_PAUSE
+local function farmPress(pp)
+	pcall(function() pp.HoldDuration = 0 end)
+	if fireproximityprompt then
+		pcall(fireproximityprompt, pp)
+	else
+		pcall(function() pp:InputHoldBegin() end)
+		task.delay(0.1, function() pcall(function() pp:InputHoldEnd() end) end)
 	end
-	if now < farmPauseUntil then return end
-	if (hrp.Position - CFG.FarmPos).Magnitude <= CFG.FarmRadius then return end
+end
 
-	-- kalau server terus mengembalikan karakter, istirahat 4 detik supaya tidak spam teleport
-	for i = #farmFixes, 1, -1 do
-		if now - farmFixes[i] > 10 then table.remove(farmFixes, i) end
-	end
-	if #farmFixes >= 10 then
-		farmPauseUntil = now + 4
-		farmFixes = {}
-		return
-	end
-	farmFixes[#farmFixes + 1] = now
+local function farmReset()
+	farmAnchor, farmLastPos, farmExpected = nil, nil, nil
+	farmGliding, farmUserMoved = false, false
+	farmPauseUntil, farmFixes = 0, {}
+	farmMsg, farmNote, farmTrainAt = "", "", 0
+end
 
-	hrp.AssemblyLinearVelocity = Vector3.zero
-	hrp.AssemblyAngularVelocity = Vector3.zero
-	char:PivotTo(CFrame.new(CFG.FarmPos) * (hrp.CFrame - hrp.CFrame.Position))
-end)
+-- Berjalan tiap frame supaya gerakannya halus (bukan teleport per 0.2 detik)
+bind(RunService.Heartbeat:Connect(function(dt)
+	local ok, err = pcall(function()
+		if not CFG.AutoFarm then
+			if farmAnchor then farmReset() end
+			return
+		end
+		local char = lp.Character
+		local hum = char and char:FindFirstChildOfClass("Humanoid")
+		local hrp = char and char:FindFirstChild("HumanoidRootPart")
+		if not (hrp and hum and hum.Health > 0 and char:IsDescendantOf(workspace)) then
+			farmLastPos, farmExpected = nil, nil
+			return
+		end
+		local now = os.clock()
+		dt = math.min(dt, 0.1)
+
+		-- fitur baru dinyalakan: titik farm = posisi sekarang (jadi bekerja di area mana pun)
+		if CFG.FarmKick then
+			CFG.FarmKick = false
+			farmReset()
+		end
+		if not farmAnchor then
+			farmAnchor = CFG.FarmPos -- koordinat tetap tempat latihan
+			farmLastPos, farmExpected = hrp.Position, nil
+		end
+
+		-- server menarik balik hasil luncuran? hitung, kalau sering istirahat sebentar
+		if farmExpected then
+			local diff = (hrp.Position - farmExpected).Magnitude
+			if diff > 3 and diff <= JUMP_REANCHOR then
+				farmFixes[#farmFixes + 1] = now
+			end
+			farmExpected = nil
+		end
+		for i = #farmFixes, 1, -1 do
+			if now - farmFixes[i] > 10 then table.remove(farmFixes, i) end
+		end
+		if #farmFixes >= 8 then
+			farmPauseUntil = now + 4
+			farmFixes = {}
+			farmGliding = false
+		end
+
+		-- pemain menggerakkan karakter sendiri: jangan ditarik; setelah berhenti, titik farm = tempat berhenti
+		if hum.MoveDirection.Magnitude > 0.1 or userBusy() then
+			farmPauseUntil = math.max(farmPauseUntil, now + FARM_PAUSE)
+			farmUserMoved = true
+			farmGliding = false
+		end
+		if now < farmPauseUntil then
+			farmLastPos = hrp.Position
+			return
+		end
+		farmUserMoved = false
+
+		local delta = farmAnchor - hrp.Position
+		local dist = delta.Magnitude
+		if dist > CFG.FarmRadius then
+			-- teleport langsung ke koordinat farm (dijeda 0.6 dtk supaya tidak spam)
+			if now - farmTpAt >= 0.6 then
+				farmTpAt = now
+				hrp.AssemblyLinearVelocity = Vector3.zero
+				hrp.AssemblyAngularVelocity = Vector3.zero
+				char:PivotTo(CFrame.new(farmAnchor) * (hrp.CFrame - hrp.CFrame.Position))
+				farmLastPos, farmExpected = farmAnchor, farmAnchor
+			end
+			farmMsg = "teleport"
+		else
+			farmLastPos = hrp.Position
+			-- sudah di titik: mulai latihan otomatis kalau belum berjalan
+			if now - farmTrainAt > 2.5 then
+				farmTrainAt = now
+				local training = findText(function(raw)
+					return string.find(raw, "berhenti", 1, true) ~= nil or string.find(raw, "stop", 1, true) ~= nil
+				end)
+				if training then
+					farmNote = "latihan jalan"
+				else
+					local pp = findTrainPrompt(hrp.Position)
+					if pp then
+						local nm = (pp.ActionText ~= "" and pp.ActionText) or pp.Name
+						farmNote = "mulai: " .. string.sub(nm, 1, 7)
+						farmPress(pp)
+					else
+						farmNote = "cari tombol"
+					end
+				end
+			end
+			farmMsg = farmNote ~= "" and farmNote or "di titik"
+		end
+	end)
+	if not ok then lastErr = "farm: " .. tostring(err) end
+end))
 
 ------------------------------------------------------------
 -- Auto Perfect
@@ -1370,7 +1641,7 @@ local function perfectStep()
 		local predicted = v + math.max(r, 0) * CFG.Lead
 
 		if not armed and (v < CFG.Target - 2 or now - lastClick > 2.5) then armed = true end
-		status.Text = string.format("+%d / %d  %s", v, CFG.Target, armed and "siap" or "tunggu")
+		status.Text = string.format("+%d/%d %s", v, CFG.Target, armed and "siap" or "tunggu")
 
 		if armed and predicted >= CFG.Target and now - lastClick > CFG.Cooldown then
 			armed, lastClick = false, now
@@ -1385,12 +1656,12 @@ local function perfectStep()
 			lastScan = now
 			task.spawn(scan)
 		end
-		status.Text = scanning and "Scan..." or "Menunggu bar"
+		status.Text = scanning and "Scan..." or "Cari bar"
 		return
 	end
 	local rr = ratio()
 	if not rr then return end
-	status.Text = string.format("Posisi %.0f%%", rr * 100)
+	status.Text = string.format("Pos %.0f%%", rr * 100)
 	if not armed and (rr > CFG.ZoneMax + 0.2 or now - lastClick > 2.5) then armed = true end
 	if armed and rr >= CFG.ZoneMin and rr <= CFG.ZoneMax and now - lastClick > CFG.Cooldown then
 		armed, lastClick = false, now
@@ -1455,18 +1726,20 @@ loop("x2", 0.12, function()
 			-- layar bonus muncul -> langsung tap (tombol di dalamnya dipicu, lalu tap di tengah layer)
 			local b = bonus:IsA("GuiButton") and bonus or bonus:FindFirstChildWhichIsA("GuiButton", true)
 			if b and visible(b) then fireButton(b) end
-			click(centerOf(bonus), true)
-			status2.Text = "Tap Bonus aktif"
+			local pt = freeInRect(bonus) -- titik di layer bonus yang tidak tertutup menu
+			if pt then click(pt, true) end
+			status2.Text = "Tap Bonus"
 			return
 		end
 
 		local b = findX2()
 		if b then
 			-- x2 tetap jalan walau layar sedang disentuh / digeser (force = true)
-			click(centerOf(b), true)
-			status2.Text = "Klik x2 aktif"
+			local pt = freeInRect(b)
+			if pt then click(pt, true) else fireButton(b) end
+			status2.Text = "Klik x2"
 		else
-			status2.Text = "Menunggu tombol x2"
+			status2.Text = "Cari x2"
 		end
 	else
 		status2.Text = farmMsg
@@ -1746,7 +2019,7 @@ task.spawn(function()
 			end)
 		end
 
-		spawnEmbers(content, 44, 101, true)
+		spawnEmbers(content, 12, 101, true)
 
 		local barT = box(content, 103, Color3.new(0, 0, 0))
 		barT.Size = UDim2.new(1, 0, 0, 0)
