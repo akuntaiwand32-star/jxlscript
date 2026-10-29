@@ -505,7 +505,16 @@ panel.GroupTransparency = 1
 panel.Visible = false
 panel.Parent = gui
 corner(panel, 18)
-local pstroke = stroke(panel, ACCENT, 1.5, 0.5)
+local pedge = Instance.new("Frame")
+pedge.Name = "Edge"
+pedge.Size = UDim2.new(1, -2, 1, -2)
+pedge.Position = UDim2.fromOffset(1, 1)
+pedge.BackgroundTransparency = 1
+pedge.BorderSizePixel = 0
+pedge.ZIndex = 50
+pedge.Parent = panel
+corner(pedge, 17)
+local pstroke = stroke(pedge, ACCENT, 1.5, 0.5)
 local pscale = Instance.new("UIScale")
 pscale.Scale = 0.85
 pscale.Parent = panel
@@ -566,7 +575,7 @@ hlGrad.Transparency = NumberSequence.new({
 })
 hlGrad.Parent = hline
 
-local ptitle = label(header, "NimeroHub", 18, Color3.new(1, 1, 1), Enum.Font.GothamBlack)
+local ptitle = label(header, "NimeroHub", 16, Color3.new(1, 1, 1), Enum.Font.Michroma)
 ptitle.Size = UDim2.new(1, -100, 0, 22)
 ptitle.Position = UDim2.fromOffset(14, 5)
 local tgrad = Instance.new("UIGradient")
@@ -613,11 +622,153 @@ closeBtn.MouseButton1Click:Connect(function()
 	if setPanel then setPanel(false) end
 end)
 
+local FONT_TITLE = Enum.Font.Michroma -- judul: futuristik
+local FONT_ROW = Enum.Font.Oswald       -- nama fitur: tegas & ramping
+local FONT_TAG = Enum.Font.GothamBlack  -- label kecil ON/OFF
+
 local function pressable(row)
 	row.MouseButton1Down:Connect(function() tw(row, 0.08, { BackgroundColor3 = ROW_DOWN }) end)
-	local function up() tw(row, 0.15, { BackgroundColor3 = ROW }) end
+	local function up() tw(row, 0.18, { BackgroundColor3 = ROW }) end
 	row.MouseButton1Up:Connect(up)
 	row.MouseLeave:Connect(up)
+end
+
+------------------------------------------------------------
+-- Efek suara (bawaan Roblox, tanpa unduhan) & notifikasi
+------------------------------------------------------------
+local SoundService = game:GetService("SoundService")
+local function sfx(id, vol, speed)
+	pcall(function()
+		local snd = Instance.new("Sound")
+		snd.SoundId = id
+		snd.Volume = vol or 0.5
+		snd.PlaybackSpeed = speed or 1
+		snd.Parent = SoundService
+		snd.Ended:Connect(function() snd:Destroy() end)
+		snd:Play()
+		task.delay(3, function() if snd.Parent then snd:Destroy() end end)
+	end)
+end
+local function sfxToggle(on)
+	if on then
+		sfx("rbxasset://sounds/switch.wav", 0.6, 1.35)
+		task.delay(0.07, function() sfx("rbxasset://sounds/button.wav", 0.35, 1.6) end)
+	else
+		sfx("rbxasset://sounds/switch.wav", 0.5, 0.8)
+	end
+end
+
+-- Notifikasi kotak (muncul dari atas, menumpuk maks 3, hilang sendiri)
+local toastHolder = Instance.new("Frame")
+toastHolder.Name = "Toasts"
+toastHolder.AnchorPoint = Vector2.new(0.5, 0)
+toastHolder.Position = UDim2.new(0.5, 0, 0, 14)
+toastHolder.Size = UDim2.fromOffset(250, 200)
+toastHolder.BackgroundTransparency = 1
+toastHolder.ZIndex = 100
+toastHolder.Parent = gui
+local tl = Instance.new("UIListLayout")
+tl.Padding = UDim.new(0, 8)
+tl.SortOrder = Enum.SortOrder.LayoutOrder
+tl.HorizontalAlignment = Enum.HorizontalAlignment.Center
+tl.Parent = toastHolder
+
+local toastN, toastLive = 0, {}
+local function dismissToast(t)
+	if not t or t.gone then return end
+	t.gone = true
+	tw(t.card, 0.25, { GroupTransparency = 1 })
+	tw(t.slide, 0.25, { Position = UDim2.fromOffset(0, -18) }, Enum.EasingStyle.Quad)
+	task.delay(0.28, function() pcall(function() t.wrap:Destroy() end) end)
+end
+
+local function toast(title, on)
+	-- notifikasi lama untuk fitur yang sama diganti
+	local old = toastLive[title]
+	if old then dismissToast(old) end
+	local live = 0
+	for _, t in pairs(toastLive) do if not t.gone then live += 1 end end
+	if live >= 3 then
+		for k, t in pairs(toastLive) do
+			if not t.gone then dismissToast(t) toastLive[k] = nil break end
+		end
+	end
+
+	toastN += 1
+	local col = on and ON or Color3.fromRGB(128, 96, 100)
+	local wrap = Instance.new("Frame")
+	wrap.Size = UDim2.fromOffset(250, 46)
+	wrap.BackgroundTransparency = 1
+	wrap.LayoutOrder = toastN
+	wrap.Parent = toastHolder
+
+	local slide = Instance.new("Frame") -- dipakai untuk gerak masuk/keluar
+	slide.Size = UDim2.fromScale(1, 1)
+	slide.Position = UDim2.fromOffset(0, -26)
+	slide.BackgroundTransparency = 1
+	slide.Parent = wrap
+
+	local card = Instance.new("CanvasGroup")
+	card.Size = UDim2.fromScale(1, 1)
+	card.BackgroundColor3 = Color3.fromRGB(16, 5, 8)
+	card.GroupTransparency = 1
+	card.Parent = slide
+	corner(card, 12)
+	local g = Instance.new("UIGradient")
+	g.Color = ColorSequence.new(Color3.fromRGB(44, 10, 16), Color3.fromRGB(12, 4, 7))
+	g.Rotation = 0
+	g.Parent = card
+
+	local bar = Instance.new("Frame")
+	bar.Size = UDim2.new(0, 4, 1, 0)
+	bar.BackgroundColor3 = col
+	bar.BorderSizePixel = 0
+	bar.Parent = card
+
+	local ic = Instance.new("Frame")
+	ic.Size = UDim2.fromOffset(26, 26)
+	ic.Position = UDim2.new(0, 16, 0.5, -13)
+	ic.BackgroundColor3 = col
+	ic.Parent = card
+	corner(ic, 13)
+	local icl = label(ic, on and "✓" or "✕", 15, Color3.new(1, 1, 1), Enum.Font.GothamBlack, Enum.TextXAlignment.Center)
+	icl.Size = UDim2.fromScale(1, 1)
+
+	local t1 = label(card, title, 17, TXT, FONT_ROW)
+	t1.Size = UDim2.new(1, -62, 0, 20)
+	t1.Position = UDim2.fromOffset(52, 5)
+	t1.TextTruncate = Enum.TextTruncate.AtEnd
+	local t2 = label(card, on and "AKTIF" or "NONAKTIF", 9, col, FONT_TAG)
+	t2.Size = UDim2.new(1, -62, 0, 12)
+	t2.Position = UDim2.fromOffset(52, 26)
+
+	local life = Instance.new("Frame") -- garis waktu di dasar kotak
+	life.AnchorPoint = Vector2.new(0, 1)
+	life.Size = UDim2.new(1, 0, 0, 2)
+	life.Position = UDim2.fromScale(0, 1)
+	life.BackgroundColor3 = col
+	life.BorderSizePixel = 0
+	life.Parent = card
+
+	local edge = Instance.new("Frame")
+	edge.Size = UDim2.new(1, -2, 1, -2)
+	edge.Position = UDim2.fromOffset(1, 1)
+	edge.BackgroundTransparency = 1
+	edge.ZIndex = 5
+	edge.Parent = card
+	corner(edge, 11)
+	stroke(edge, col, 1.2, 0.45)
+
+	local t = { wrap = wrap, slide = slide, card = card, gone = false }
+	toastLive[title] = t
+
+	tw(card, 0.25, { GroupTransparency = 0 })
+	tw(slide, 0.38, { Position = UDim2.fromOffset(0, 0) }, Enum.EasingStyle.Back)
+	ic.Size = UDim2.fromOffset(12, 12)
+	ic.Position = UDim2.new(0, 16, 0.5, -6)
+	tw(ic, 0.45, { Size = UDim2.fromOffset(26, 26), Position = UDim2.new(0, 16, 0.5, -13) }, Enum.EasingStyle.Back)
+	tw(life, 2.4, { Size = UDim2.new(0, 0, 0, 2) }, Enum.EasingStyle.Linear)
+	task.delay(2.4, function() dismissToast(t) end)
 end
 
 local function makeSwitch(text, y, get, set)
@@ -629,30 +780,84 @@ local function makeSwitch(text, y, get, set)
 	row.AutoButtonColor = false
 	row.Parent = panel
 	corner(row, 10)
-	stroke(row, ACCENT, 1, 0.6)
+	local rstroke = stroke(row, ACCENT, 1, 0.6)
 	pressable(row)
-	local lb = label(row, text, 14, TXT)
-	lb.Size = UDim2.new(1, -66, 1, 0)
-	lb.Position = UDim2.fromOffset(12, 0)
+
+	-- sorot merah lembut dari kiri saat aktif
+	local fill = Instance.new("Frame")
+	fill.Size = UDim2.fromScale(1, 1)
+	fill.BackgroundColor3 = ON
+	fill.BackgroundTransparency = 1
+	fill.BorderSizePixel = 0
+	fill.Parent = row
+	corner(fill, 10)
+	local fg = Instance.new("UIGradient")
+	fg.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.55),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	fg.Parent = fill
+
+	local accentBar = Instance.new("Frame")
+	accentBar.Size = UDim2.fromOffset(3, 16)
+	accentBar.Position = UDim2.new(0, 5, 0.5, -8)
+	accentBar.BackgroundColor3 = OFFC
+	accentBar.BorderSizePixel = 0
+	accentBar.Parent = row
+	corner(accentBar, 2)
+
+	local lb = label(row, text, 17, TXT, FONT_ROW)
+	lb.Size = UDim2.new(1, -108, 1, 0)
+	lb.Position = UDim2.fromOffset(16, 0)
+	local tag = label(row, "OFF", 8, SUB, FONT_TAG, Enum.TextXAlignment.Right)
+	tag.Size = UDim2.fromOffset(30, 34)
+	tag.Position = UDim2.new(1, -86, 0, 0)
+
 	local track = Instance.new("Frame")
 	track.Size = UDim2.fromOffset(40, 22)
 	track.Position = UDim2.new(1, -52, 0.5, -11)
 	track.BackgroundColor3 = OFFC
 	track.Parent = row
 	corner(track, 11)
+	local tstroke = stroke(track, ON, 1.5, 1)
 	local knob = Instance.new("Frame")
 	knob.Size = UDim2.fromOffset(16, 16)
 	knob.Position = UDim2.new(0, 3, 0.5, -8)
 	knob.BackgroundColor3 = Color3.new(1, 1, 1)
 	knob.Parent = track
 	corner(knob, 8)
+
+	local first = true
 	local function render()
 		local on = get()
-		tw(track, 0.18, { BackgroundColor3 = on and ON or OFFC })
-		tw(knob, 0.18, { Position = on and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8) }, Enum.EasingStyle.Back)
-		tw(lb, 0.18, { TextColor3 = on and Color3.new(1, 1, 1) or TXT })
+		local d = first and 0 or 0.22
+		tw(track, d, { BackgroundColor3 = on and ON or OFFC })
+		tw(tstroke, d, { Transparency = on and 0.35 or 1 })
+		tw(fill, d + 0.1, { BackgroundTransparency = on and 0 or 1 })
+		tw(accentBar, d, { BackgroundColor3 = on and ON or OFFC, Size = UDim2.fromOffset(3, on and 22 or 16), Position = UDim2.new(0, 5, 0.5, on and -11 or -8) })
+		tw(rstroke, d, { Color = on and ON or ACCENT, Transparency = on and 0.3 or 0.6 })
+		tw(lb, d, { TextColor3 = on and Color3.new(1, 1, 1) or TXT })
+		tw(tag, d, { TextColor3 = on and ON or SUB })
+		tag.Text = on and "ON" or "OFF"
+		if first then
+			knob.Position = on and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
+		else
+			-- knob melar lalu mengecil (efek cair)
+			knob.Size = UDim2.fromOffset(22, 16)
+			tw(knob, 0.3, { Size = UDim2.fromOffset(16, 16), Position = on and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8) }, Enum.EasingStyle.Back)
+		end
+		first = false
 	end
-	row.MouseButton1Click:Connect(function() set(not get()) render() end)
+	row.MouseButton1Click:Connect(function()
+		set(not get())
+		render()
+		local on = get()
+		sfxToggle(on)
+		toast(text, on)
+		-- kedip singkat pada baris
+		row.BackgroundColor3 = on and ROW_DOWN or ROW
+		tw(row, 0.35, { BackgroundColor3 = ROW })
+	end)
 	render()
 	return render, row
 end
@@ -796,25 +1001,47 @@ local function panelFit()
 	return math.clamp((vs.Y - 12) / PH, 0.6, 1)
 end
 
--- bx/by (opsional) = posisi tujuan gelembung; dipakai saat gelembung sedang digeser/snap
+-- bx/by (opsional) = posisi tujuan gelembung; dipakai saat gelembung sedang digeser
 local function placePanel(animate, bx, by)
 	local vs = workspace.CurrentCamera.ViewportSize
 	local fit = panelFit()
 	local pw, ph = PW * fit, PH * fit
 	local bp = (bx and by) and Vector2.new(bx, by) or bubble.AbsolutePosition
-	local gap = 10
+	local gap = 22 -- jarak panel ke gelembung
+	local m = 6
 
 	local rightX = bp.X + BUB + gap
 	local leftX = bp.X - pw - gap
-	local function fits(px) return px >= 6 and px + pw <= vs.X - 6 end
+	local function fitsX(px) return px >= m and px + pw <= vs.X - m end
 
-	local x
-	if (bp.X + BUB / 2) < vs.X / 2 then
-		x = fits(rightX) and rightX or (fits(leftX) and leftX or math.clamp(rightX, 6, math.max(6, vs.X - pw - 6)))
+	local first, second = rightX, leftX
+	if (bp.X + BUB / 2) >= vs.X / 2 then first, second = leftX, rightX end
+
+	local x, y
+	local sideOk = true
+	if fitsX(first) then
+		x = first
+	elseif fitsX(second) then
+		x = second
 	else
-		x = fits(leftX) and leftX or (fits(rightX) and rightX or math.clamp(leftX, 6, math.max(6, vs.X - pw - 6)))
+		sideOk = false
+		x = math.clamp(bp.X + BUB / 2 - pw / 2, m, math.max(m, vs.X - pw - m))
 	end
-	local y = math.clamp(bp.Y + BUB / 2 - ph / 2, 6, math.max(6, vs.Y - ph - 6))
+
+	if sideOk then
+		y = math.clamp(bp.Y + BUB / 2 - ph / 2, m, math.max(m, vs.Y - ph - m))
+	else
+		-- tidak muat di samping: taruh di bawah / atas gelembung
+		local below = bp.Y + BUB + gap
+		local above = bp.Y - ph - gap
+		if below + ph <= vs.Y - m then
+			y = below
+		elseif above >= m then
+			y = above
+		else
+			y = math.clamp(below, m, math.max(m, vs.Y - ph - m))
+		end
+	end
 
 	local target = UDim2.fromOffset(x + pw / 2, y + ph / 2)
 	if animate and panel.Visible then
@@ -826,6 +1053,7 @@ end
 
 setPanel = function(open)
 	panelOpen = open
+	sfx("rbxasset://sounds/button.wav", 0.3, open and 1.4 or 1)
 	if open then
 		placePanel()
 		panel.Visible = true
@@ -867,7 +1095,7 @@ ourHitTest = function(pos)
 	return inside(bubble, q1) or inside(bubble, q2) or inside(panel, q1) or inside(panel, q2)
 end
 
--- Drag gelembung, snap ke tepi, tap = buka/tutup
+-- Drag gelembung (bebas di mana saja), tap = buka/tutup
 do
 	local dragging, moved, startIn, startPos = false, false, nil, nil
 	bubble.InputBegan:Connect(function(i)
@@ -894,11 +1122,14 @@ do
 			dragging = false
 			tw(bscale, 0.2, { Scale = 1 }, Enum.EasingStyle.Back)
 			if moved then
+				-- tetap di tempat dilepas (hanya dijaga agar tidak keluar layar)
 				local vs = workspace.CurrentCamera.ViewportSize
 				local p = bubble.AbsolutePosition
-				local tx = (p.X + BUB / 2 < vs.X / 2) and 8 or (vs.X - BUB - 8)
-				local ty = math.clamp(p.Y, 8, vs.Y - BUB - 8)
-				tw(bubble, 0.3, { Position = UDim2.fromOffset(tx, ty) }, Enum.EasingStyle.Back)
+				local tx = math.clamp(p.X, 4, math.max(4, vs.X - BUB - 4))
+				local ty = math.clamp(p.Y, 4, math.max(4, vs.Y - BUB - 4))
+				if tx ~= p.X or ty ~= p.Y then
+					tw(bubble, 0.15, { Position = UDim2.fromOffset(tx, ty) })
+				end
 				if panelOpen then placePanel(true, tx, ty) end
 			else
 				setPanel(not panelOpen)
@@ -907,35 +1138,14 @@ do
 	end))
 end
 
--- Panel bisa digeser lewat header
-do
-	local dragging, startIn, startPos = false, nil, nil
-	header.InputBegan:Connect(function(i)
-		if i.UserInputType == Enum.UserInputType.Touch or i.UserInputType == Enum.UserInputType.MouseButton1 then
-			dragging = true
-			startIn = i.Position
-			startPos = panel.Position
-		end
-	end)
-	bind(UIS.InputChanged:Connect(function(i)
-		if dragging and (i.UserInputType == Enum.UserInputType.Touch or i.UserInputType == Enum.UserInputType.MouseMovement) then
-			local d = i.Position - startIn
-			panel.Position = UDim2.fromOffset(startPos.X.Offset + d.X, startPos.Y.Offset + d.Y)
-		end
-	end))
-	bind(UIS.InputEnded:Connect(function(i)
-		if dragging and (i.UserInputType == Enum.UserInputType.Touch or i.UserInputType == Enum.UserInputType.MouseButton1) then
-			dragging = false
-		end
-	end))
-end
+-- Panel mengikuti gelembung (tidak digeser manual, supaya tidak menimpa gelembung)
 
 -- Animasi napas
 task.spawn(function()
 	while alive and gui.Parent do
 		local active = CFG.Enabled or CFG.AutoFarm or CFG.AutoX2
 		tw(bstroke, 0.9, { Thickness = active and 4.5 or 3, Transparency = active and 0.1 or 0.3 }, Enum.EasingStyle.Sine)
-		tw(pstroke, 0.9, { Thickness = 2.5, Transparency = 0.2 }, Enum.EasingStyle.Sine)
+		tw(pstroke, 0.9, { Thickness = 2, Transparency = 0.2 }, Enum.EasingStyle.Sine)
 		tw(glow, 0.9, { BackgroundTransparency = 0.25 }, Enum.EasingStyle.Sine)
 		tw(tgrad, 0.9, { Offset = Vector2.new(0.4, 0) }, Enum.EasingStyle.Sine)
 		task.wait(0.9)
