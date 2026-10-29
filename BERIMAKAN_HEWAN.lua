@@ -470,7 +470,7 @@ end
 local BUB = 56
 local bubble = Instance.new("TextButton")
 bubble.Size = UDim2.fromOffset(BUB, BUB)
-bubble.Position = UDim2.fromOffset(10, 140)
+bubble.Position = UDim2.fromOffset(40, 140)
 bubble.BackgroundColor3 = Color3.fromRGB(20, 5, 9)
 bubble.Text = "NH"
 bubble.TextColor3 = Color3.fromRGB(240, 60, 72)
@@ -1007,7 +1007,7 @@ local function placePanel(animate, bx, by)
 	local fit = panelFit()
 	local pw, ph = PW * fit, PH * fit
 	local bp = (bx and by) and Vector2.new(bx, by) or bubble.AbsolutePosition
-	local gap = 22 -- jarak panel ke gelembung
+	local gap = 32 -- jarak panel ke gelembung
 	local m = 6
 
 	local rightX = bp.X + BUB + gap
@@ -1051,6 +1051,34 @@ local function placePanel(animate, bx, by)
 	end
 end
 
+local GAP_MIN = 28
+local function ensureGap(animate)
+	if not panelOpen or not panel.Visible then return end
+	local bp, bs = bubble.AbsolutePosition, bubble.AbsoluteSize
+	local pp, ps = panel.AbsolutePosition, panel.AbsoluteSize
+	local overlapY = pp.Y < bp.Y + bs.Y + GAP_MIN and pp.Y + ps.Y > bp.Y - GAP_MIN
+	if not overlapY then return end
+	local vs = workspace.CurrentCamera.ViewportSize
+	local panelRight = (pp.X + ps.X / 2) >= (bp.X + bs.X / 2)
+	local dx = 0
+	if panelRight then
+		dx = math.max(0, (bp.X + bs.X + GAP_MIN) - pp.X)
+	else
+		dx = -math.max(0, (pp.X + ps.X) - (bp.X - GAP_MIN))
+	end
+	if dx == 0 then return end
+	local newLeft = math.clamp(pp.X + dx, 6, math.max(6, vs.X - ps.X - 6))
+	dx = newLeft - pp.X
+	if math.abs(dx) < 0.5 then return end
+	local cur = panel.Position
+	local target = UDim2.fromOffset(cur.X.Offset + dx, cur.Y.Offset)
+	if animate then
+		tw(panel, 0.2, { Position = target }, Enum.EasingStyle.Quad)
+	else
+		panel.Position = target
+	end
+end
+
 setPanel = function(open)
 	panelOpen = open
 	sfx("rbxasset://sounds/button.wav", 0.3, open and 1.4 or 1)
@@ -1059,6 +1087,7 @@ setPanel = function(open)
 		panel.Visible = true
 		tw(panel, 0.22, { GroupTransparency = 0 })
 		tw(pscale, 0.28, { Scale = panelFit() }, Enum.EasingStyle.Back)
+		task.delay(0.4, function() ensureGap(true) end)
 	else
 		tw(panel, 0.16, { GroupTransparency = 1 })
 		tw(pscale, 0.16, { Scale = 0.85 * panelFit() })
@@ -1130,7 +1159,10 @@ do
 				if tx ~= p.X or ty ~= p.Y then
 					tw(bubble, 0.15, { Position = UDim2.fromOffset(tx, ty) })
 				end
-				if panelOpen then placePanel(true, tx, ty) end
+				if panelOpen then
+					placePanel(true, tx, ty)
+					task.delay(0.45, function() ensureGap(true) end)
+				end
 			else
 				setPanel(not panelOpen)
 			end
