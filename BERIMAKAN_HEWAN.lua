@@ -1,7 +1,20 @@
 -- NimeroHub | BERIMAKAN HEWAN v3 (Delta / Luau) - tema Merah Kehitaman
 -- Auto Perfect       : baca angka "+N", klik pas mencapai Target + auto "Klik untuk melanjutkan"
 -- Auto Farm          : jaga karakter di FarmPos (koordinat tetap)
--- Auto Click x2      : klik tombol x2 saat latihan
+-- Auto Click x2      : klik tombol x2 saat latihan + tap otomatis layar Tap Bonus kalau muncul
+
+-- Kunci game: hanya jalan di "[🎃] Throw Food For Animals"
+local ALLOWED_PLACE_ID = 120219252362013
+if game.PlaceId ~= ALLOWED_PLACE_ID then
+	pcall(function()
+		game:GetService("StarterGui"):SetCore("SendNotification", {
+			Title = "BERIMAKAN HEWAN",
+			Text = "Script ini hanya untuk game Throw Food For Animals.",
+			Duration = 6,
+		})
+	end)
+	return
+end
 
 if _G.AP_CLEAN then pcall(_G.AP_CLEAN) end
 
@@ -1072,8 +1085,28 @@ local function findX2()
 	return nil
 end
 
+-- Tap Bonus: PlayerGui.TrainingSequence.TapBonusLayer
+-- Hanya diklik kalau layernya ADA dan sedang terlihat; kalau tidak ada, tidak melakukan apa-apa.
+local function findTapBonus()
+	local seq = pg:FindFirstChild("TrainingSequence")
+	local layer = seq and seq:FindFirstChild("TapBonusLayer", true)
+	if not (layer and layer:IsA("GuiObject")) then return nil end
+	if not visible(layer) or layer.AbsoluteSize.X <= 0 or layer.AbsoluteSize.Y <= 0 then return nil end
+	return layer
+end
+
 loop("x2", 0.12, function()
 	if CFG.AutoX2 then
+		local bonus = findTapBonus()
+		if bonus then
+			-- layar bonus muncul -> langsung tap (tombol di dalamnya dipicu, lalu tap di tengah layer)
+			local b = bonus:IsA("GuiButton") and bonus or bonus:FindFirstChildWhichIsA("GuiButton", true)
+			if b and visible(b) then fireButton(b) end
+			click(centerOf(bonus), true)
+			status2.Text = "Tap Bonus aktif"
+			return
+		end
+
 		local b = findX2()
 		if b then
 			-- x2 tetap jalan walau layar sedang disentuh / digeser (force = true)
