@@ -723,14 +723,21 @@ local function toast(title, on)
 
 	local card = Instance.new("CanvasGroup")
 	card.Size = UDim2.fromScale(1, 1)
-	card.BackgroundColor3 = Color3.fromRGB(16, 5, 8)
+	card.BackgroundTransparency = 1
 	card.GroupTransparency = 1
 	card.Parent = slide
 	corner(card, 12)
+	local cbg = Instance.new("Frame") -- latar terpisah (gradient di CanvasGroup menggelapkan isinya)
+	cbg.Size = UDim2.fromScale(1, 1)
+	cbg.BackgroundColor3 = Color3.new(1, 1, 1)
+	cbg.BorderSizePixel = 0
+	cbg.ZIndex = 0
+	cbg.Parent = card
+	corner(cbg, 12)
 	local g = Instance.new("UIGradient")
 	g.Color = ColorSequence.new(Color3.fromRGB(44, 10, 16), Color3.fromRGB(12, 4, 7))
 	g.Rotation = 0
-	g.Parent = card
+	g.Parent = cbg
 
 	local bar = Instance.new("Frame")
 	bar.Size = UDim2.new(0, 4, 1, -16)
@@ -886,14 +893,22 @@ do
 	hud.AnchorPoint = Vector2.new(0.5, 0)
 	hud.Position = UDim2.new(0.5, 0, 0, 8)
 	hud.Size = UDim2.fromOffset(264, 28)
-	hud.BackgroundColor3 = Color3.fromRGB(14, 5, 8)
+	hud.BackgroundTransparency = 1
 	hud.GroupTransparency = 1
 	hud.ZIndex = 90
 	hud.Parent = gui
 	corner(hud, 14)
+	-- latar di frame terpisah: UIGradient di CanvasGroup akan menggelapkan SEMUA isinya (teks jadi tak terlihat)
+	local hbg = Instance.new("Frame")
+	hbg.Size = UDim2.fromScale(1, 1)
+	hbg.BackgroundColor3 = Color3.new(1, 1, 1)
+	hbg.BorderSizePixel = 0
+	hbg.ZIndex = 0
+	hbg.Parent = hud
+	corner(hbg, 14)
 	local hg = Instance.new("UIGradient")
 	hg.Color = ColorSequence.new(Color3.fromRGB(40, 9, 15), Color3.fromRGB(12, 4, 7))
-	hg.Parent = hud
+	hg.Parent = hbg
 
 	local hedge = Instance.new("Frame")
 	hedge.Size = UDim2.new(1, -2, 1, -2)
