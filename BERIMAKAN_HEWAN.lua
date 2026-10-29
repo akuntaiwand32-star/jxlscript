@@ -525,6 +525,7 @@ bgFrame.Size = UDim2.fromScale(1, 1)
 bgFrame.BackgroundColor3 = Color3.new(1, 1, 1)
 bgFrame.BorderSizePixel = 0
 bgFrame.Parent = panel
+corner(bgFrame, 18)
 local bgGrad = Instance.new("UIGradient")
 bgGrad.Color = ColorSequence.new({
 	ColorSequenceKeypoint.new(0, Color3.fromRGB(30, 6, 11)),
@@ -541,6 +542,7 @@ glow.Position = UDim2.new(0, 0, 1, -110)
 glow.BackgroundColor3 = ACCENT
 glow.BorderSizePixel = 0
 glow.Parent = panel
+corner(glow, 18)
 local glowGrad = Instance.new("UIGradient")
 glowGrad.Transparency = NumberSequence.new({
 	NumberSequenceKeypoint.new(0, 1),
@@ -561,6 +563,17 @@ header.Parent = panel
 local hGrad = Instance.new("UIGradient")
 hGrad.Color = ColorSequence.new(Color3.fromRGB(128, 10, 24), Color3.fromRGB(20, 4, 8))
 hGrad.Parent = header
+corner(header, 18)
+local hfill = Instance.new("Frame") -- menutup sudut bawah header supaya tetap rata
+hfill.Size = UDim2.new(1, 0, 0, 24)
+hfill.Position = UDim2.new(0, 0, 1, -24)
+hfill.BackgroundColor3 = Color3.new(1, 1, 1)
+hfill.BorderSizePixel = 0
+hfill.ZIndex = 0
+hfill.Parent = header
+local hfGrad = Instance.new("UIGradient")
+hfGrad.Color = ColorSequence.new(Color3.fromRGB(128, 10, 24), Color3.fromRGB(20, 4, 8))
+hfGrad.Parent = hfill
 
 local hline = Instance.new("Frame")
 hline.Size = UDim2.new(1, 0, 0, 2)
@@ -662,7 +675,7 @@ end
 local toastHolder = Instance.new("Frame")
 toastHolder.Name = "Toasts"
 toastHolder.AnchorPoint = Vector2.new(0.5, 0)
-toastHolder.Position = UDim2.new(0.5, 0, 0, 14)
+toastHolder.Position = UDim2.new(0.5, 0, 0, 46)
 toastHolder.Size = UDim2.fromOffset(250, 200)
 toastHolder.BackgroundTransparency = 1
 toastHolder.ZIndex = 100
@@ -720,14 +733,16 @@ local function toast(title, on)
 	g.Parent = card
 
 	local bar = Instance.new("Frame")
-	bar.Size = UDim2.new(0, 4, 1, 0)
+	bar.Size = UDim2.new(0, 4, 1, -16)
+	bar.Position = UDim2.fromOffset(7, 8)
 	bar.BackgroundColor3 = col
 	bar.BorderSizePixel = 0
 	bar.Parent = card
+	corner(bar, 2)
 
 	local ic = Instance.new("Frame")
 	ic.Size = UDim2.fromOffset(26, 26)
-	ic.Position = UDim2.new(0, 16, 0.5, -13)
+	ic.Position = UDim2.new(0, 22, 0.5, -13)
 	ic.BackgroundColor3 = col
 	ic.Parent = card
 	corner(ic, 13)
@@ -735,17 +750,17 @@ local function toast(title, on)
 	icl.Size = UDim2.fromScale(1, 1)
 
 	local t1 = label(card, title, 17, TXT, FONT_ROW)
-	t1.Size = UDim2.new(1, -62, 0, 20)
-	t1.Position = UDim2.fromOffset(52, 5)
+	t1.Size = UDim2.new(1, -68, 0, 20)
+	t1.Position = UDim2.fromOffset(58, 5)
 	t1.TextTruncate = Enum.TextTruncate.AtEnd
 	local t2 = label(card, on and "AKTIF" or "NONAKTIF", 9, col, FONT_TAG)
-	t2.Size = UDim2.new(1, -62, 0, 12)
-	t2.Position = UDim2.fromOffset(52, 26)
+	t2.Size = UDim2.new(1, -68, 0, 12)
+	t2.Position = UDim2.fromOffset(58, 26)
 
 	local life = Instance.new("Frame") -- garis waktu di dasar kotak
-	life.AnchorPoint = Vector2.new(0, 1)
-	life.Size = UDim2.new(1, 0, 0, 2)
-	life.Position = UDim2.fromScale(0, 1)
+	life.AnchorPoint = Vector2.new(0, 0)
+	life.Size = UDim2.new(1, -28, 0, 2)
+	life.Position = UDim2.new(0, 14, 1, -5)
 	life.BackgroundColor3 = col
 	life.BorderSizePixel = 0
 	life.Parent = card
@@ -765,8 +780,8 @@ local function toast(title, on)
 	tw(card, 0.25, { GroupTransparency = 0 })
 	tw(slide, 0.38, { Position = UDim2.fromOffset(0, 0) }, Enum.EasingStyle.Back)
 	ic.Size = UDim2.fromOffset(12, 12)
-	ic.Position = UDim2.new(0, 16, 0.5, -6)
-	tw(ic, 0.45, { Size = UDim2.fromOffset(26, 26), Position = UDim2.new(0, 16, 0.5, -13) }, Enum.EasingStyle.Back)
+	ic.Position = UDim2.new(0, 22, 0.5, -6)
+	tw(ic, 0.45, { Size = UDim2.fromOffset(26, 26), Position = UDim2.new(0, 22, 0.5, -13) }, Enum.EasingStyle.Back)
 	tw(life, 2.4, { Size = UDim2.new(0, 0, 0, 2) }, Enum.EasingStyle.Linear)
 	task.delay(2.4, function() dismissToast(t) end)
 end
@@ -860,6 +875,87 @@ local function makeSwitch(text, y, get, set)
 	end)
 	render()
 	return render, row
+end
+
+------------------------------------------------------------
+-- HUD atas tengah: FPS | jumlah pemain | jam
+------------------------------------------------------------
+do
+	local hud = Instance.new("CanvasGroup")
+	hud.Name = "InfoHUD"
+	hud.AnchorPoint = Vector2.new(0.5, 0)
+	hud.Position = UDim2.new(0.5, 0, 0, 8)
+	hud.Size = UDim2.fromOffset(264, 28)
+	hud.BackgroundColor3 = Color3.fromRGB(14, 5, 8)
+	hud.GroupTransparency = 1
+	hud.ZIndex = 90
+	hud.Parent = gui
+	corner(hud, 14)
+	local hg = Instance.new("UIGradient")
+	hg.Color = ColorSequence.new(Color3.fromRGB(40, 9, 15), Color3.fromRGB(12, 4, 7))
+	hg.Parent = hud
+
+	local hedge = Instance.new("Frame")
+	hedge.Size = UDim2.new(1, -2, 1, -2)
+	hedge.Position = UDim2.fromOffset(1, 1)
+	hedge.BackgroundTransparency = 1
+	hedge.ZIndex = 95
+	hedge.Parent = hud
+	corner(hedge, 13)
+	stroke(hedge, ON, 1.2, 0.5)
+
+	-- tiga kolom sama lebar + pemisah tipis
+	local function cell(i, ico)
+		local f = Instance.new("Frame")
+		f.Size = UDim2.new(1 / 3, 0, 1, 0)
+		f.Position = UDim2.new((i - 1) / 3, 0, 0, 0)
+		f.BackgroundTransparency = 1
+		f.Parent = hud
+		local ic = label(f, ico, 9, SUB, FONT_TAG, Enum.TextXAlignment.Left)
+		ic.Size = UDim2.fromOffset(26, 28)
+		ic.Position = UDim2.fromOffset(10, 0)
+		local val = label(f, "-", 12, TXT, FONT_ROW, Enum.TextXAlignment.Right)
+		val.Size = UDim2.new(1, -40, 1, 0)
+		val.Position = UDim2.fromOffset(30, 0)
+		if i > 1 then
+			local sep = Instance.new("Frame")
+			sep.Size = UDim2.fromOffset(1, 14)
+			sep.Position = UDim2.new(0, 0, 0.5, -7)
+			sep.BackgroundColor3 = ON
+			sep.BackgroundTransparency = 0.6
+			sep.BorderSizePixel = 0
+			sep.Parent = f
+		end
+		return val
+	end
+	local fpsV = cell(1, "FPS")
+	local plrV = cell(2, "PLR")
+	local clkV = cell(3, "JAM")
+
+	tw(hud, 0.5, { GroupTransparency = 0 })
+
+	-- FPS: hitung frame tiap 0.5 detik, dihaluskan
+	local frames, tAcc, fps = 0, 0, 60
+	bind(RunService.RenderStepped:Connect(function(dt)
+		frames += 1
+		tAcc += dt
+		if tAcc >= 0.5 then
+			local cur = frames / tAcc
+			fps = fps * 0.5 + cur * 0.5
+			frames, tAcc = 0, 0
+			local f = math.floor(fps + 0.5)
+			fpsV.Text = tostring(f)
+			local col = f >= 50 and Color3.fromRGB(110, 235, 140)
+				or (f >= 30 and Color3.fromRGB(255, 200, 80) or ON)
+			tw(fpsV, 0.3, { TextColor3 = col })
+		end
+	end))
+
+	loop("hud", 0.5, function()
+		local n = #Players:GetPlayers()
+		plrV.Text = n .. "/" .. tostring(Players.MaxPlayers)
+		clkV.Text = os.date("%H:%M:%S")
+	end)
 end
 
 local function refreshBubble()
